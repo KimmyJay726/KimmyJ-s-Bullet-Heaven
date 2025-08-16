@@ -20,6 +20,11 @@
                 "url": "assets/Player.svg",
                 "type": "image",
                 "key": "Player"
+            },
+            {
+                "url": "assets/Star.png",
+                "type": "image",
+                "key": "Star"
             }
         ]
     },
