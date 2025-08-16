@@ -11,20 +11,7 @@
         "borderWidth": 1280,
         "borderHeight": 720
     },
-    "displayList": [
-        {
-            "type": "Image",
-            "id": "5f52a3e8-a23f-43c5-a2c0-22fea8342fc3",
-            "label": "player",
-            "texture": {
-                "key": "Player"
-            },
-            "x": 639,
-            "y": 550,
-            "scaleX": 0.25,
-            "scaleY": 0.25
-        }
-    ],
+    "displayList": [],
     "plainObjects": [
         {
             "id": "09a85e26-dc39-40de-ab12-c8d01a6c7194",

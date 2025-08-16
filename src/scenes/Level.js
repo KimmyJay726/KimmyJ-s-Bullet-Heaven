@@ -1,133 +1,76 @@
-/* START OF COMPILED CODE */
-
-/* START-USER-IMPORTS */
-// Add any additional imports here if needed
-/* END-USER-IMPORTS */
-
 export default class Level extends Phaser.Scene {
+  
+  constructor() {
+    super("Level");
 
-	constructor() {
-		super("Level");
+    /* START-USER-CTR-CODE */
+    // Movement stats
+    this.playerVelocity     = 200;    // world units/sec
+    this.playerAcceleration = 1200;   // units/sec²
+    this.dragAmount         = 1200;   // units/sec²
 
-		/* START-USER-CTR-CODE */
-		// Initialize shooting parameters
-		this.lastDirection = { x: 0, y: -1 }; // Default shoot direction (up)
-		this.lastShotTime = 0;
-		this.shootCooldown = 500; // ms between shots
-		this.bulletSpeed = 400;
-		/* END-USER-CTR-CODE */
-	}
+    // Spin settings
+    this.spinSpeedIdle = 120;          // deg/sec when completely still
+    this.spinSpeedMax  = 360;         // deg/sec at full top speed
 
-	/** @returns {void} */
-	editorCreate() {
-		// LeftKey
-		const leftKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT);
+	// Color-cycle speed in degrees of hue per second
+    this.colorCycleSpeed = 90;  
+    
+    /* END-USER-CTR-CODE */
+  }
 
-		// UpKey
-		const upKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP);
+  editorCreate() {
+    // Input
+    this.leftKey  = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT);
+    this.upKey    = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP);
+    this.rightKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT);
+    this.downKey  = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN);
 
-		// RightKey
-		const rightKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT);
+    // Player sprite
+    this.player = this.physics.add.sprite(639, 550, "Player")
+      .setScale(0.125)
+      // make sure pivot is centered
+      .setOrigin(0.5, 0.603);
 
-		// DownKey
-		const downKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN);
+    // Physics
+    this.player.body
+      .setDrag(this.dragAmount, this.dragAmount)
+      .setMaxVelocity(this.playerVelocity, this.playerVelocity);
 
-		// ZKey
-		const zKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Z);
+    this.events.emit("scene-awake");
+  }
 
-		// FIXED: Create physics-enabled player and assign to this.player
-		this.player = this.physics.add.sprite(639, 550, "Player");
-		this.player.scaleX = 0.25;
-		this.player.scaleY = 0.25;
+  create() {
+    this.editorCreate();
+  }
 
-		this.leftKey = leftKey;
-		this.upKey = upKey;
-		this.rightKey = rightKey;
-		this.downKey = downKey;
-		this.zKey = zKey;
+ update(time, delta) {
+    // — your existing accel + spin + bounds code —
+    // 1) Acceleration (unchanged)
+    let accX = 0;
+    let accY = 0;
+    if (this.leftKey.isDown && !this.rightKey.isDown)  accX = -this.playerAcceleration;
+    else if (this.rightKey.isDown && !this.leftKey.isDown) accX = this.playerAcceleration;
+    if (this.upKey.isDown && !this.downKey.isDown)    accY = -this.playerAcceleration;
+    else if (this.downKey.isDown && !this.upKey.isDown)  accY = this.playerAcceleration;
+    this.player.setAcceleration(accX, accY);
 
-		this.events.emit("scene-awake");
-	}
+    // 2) Spin based on speed (unchanged)
+    const speed      = this.player.body.velocity.length();
+    const speedRatio = Phaser.Math.Clamp(speed / this.playerVelocity, 0, 1);
+    const spinRate   = Phaser.Math.Linear(this.spinSpeedIdle, this.spinSpeedMax, speedRatio);
+    this.player.setAngularVelocity(spinRate);
 
-	/** @type {Phaser.Input.Keyboard.Key} */
-	leftKey;
-	/** @type {Phaser.Input.Keyboard.Key} */
-	upKey;
-	/** @type {Phaser.Input.Keyboard.Key} */
-	rightKey;
-	/** @type {Phaser.Input.Keyboard.Key} */
-	downKey;
-	/** @type {Phaser.Input.Keyboard.Key} */
-	zKey;
+    // 3) Bounds clamp (unchanged)
+    const halfW = this.player.displayWidth  / 2;
+    const halfH = this.player.displayHeight / 2;
+    this.player.x = Phaser.Math.Clamp(this.player.x, 50 + halfW, this.game.config.width  - 50 - halfW);
+    this.player.y = Phaser.Math.Clamp(this.player.y, 50 + halfH, this.game.config.height - 50 - halfH);
 
-	/* START-USER-CODE */
-	playerVelocity = 200;
-	playerHealth = 100;
-	playerAttack = 10;
-	score = 0;
-
-	create() {
-		this.editorCreate();
-	}
-
-	update() {
-		// Reset velocity
-		this.player.setVelocity(0, 0);
-
-		// Movement handling
-		if (this.upKey.isDown) {
-			this.player.setVelocityY(-this.playerVelocity);
-			this.updateLastDirection(0, -1);
-		} else if (this.downKey.isDown) {
-			this.player.setVelocityY(this.playerVelocity);
-			this.updateLastDirection(0, 1);
-		}
-
-		if (this.leftKey.isDown) {
-			this.player.setVelocityX(-this.playerVelocity);
-			this.updateLastDirection(-1, 0);
-		} else if (this.rightKey.isDown) {
-			this.player.setVelocityX(this.playerVelocity);
-			this.updateLastDirection(1, 0);
-		}
-
-		// Normalize diagonal movement
-		if (this.player.body.velocity.x !== 0 && this.player.body.velocity.y !== 0) {
-			this.player.body.velocity.normalize().scale(this.playerVelocity);
-		}
-
-		// Boundary constraints
-		const halfWidth = this.player.displayWidth * this.player.scaleX / 2;
-		const halfHeight = this.player.displayHeight * this.player.scaleY / 2;
-		
-		this.player.x = Phaser.Math.Clamp(
-			this.player.x,
-			50 + halfWidth,
-			this.game.config.width - 50 - halfWidth
-		);
-		this.player.y = Phaser.Math.Clamp(
-			this.player.y,
-			50 + halfHeight,
-			this.game.config.height - 50 - halfHeight
-		);
-
-		// Shooting
-		if (this.zKey.isDown && this.time.now > this.lastShotTime + this.shootCooldown) {
-			this.shoot();
-			this.lastShotTime = this.time.now;
-		}
-	}
-
-	updateLastDirection(x, y) {
-		this.lastDirection.x = x;
-		this.lastDirection.y = y;
-	}
-
-	shoot() {
-		// Placeholder for shooting logic
-		console.log("Shooting!", this.lastDirection);
-	}
-	/* END-USER-CODE */
+    // 4) Color-cycle: compute hue [0..1], convert to RGB, tint sprite
+    //    `time` is total ms since scene start.
+    const hue      = ((time * this.colorCycleSpeed) / 1000 % 360) / 360;
+    const rgbColor = Phaser.Display.Color.HSVToRGB(hue, 0.1, 1);
+    this.player.setTint(rgbColor.color);
+  }
 }
-
-/* END OF COMPILED CODE */
