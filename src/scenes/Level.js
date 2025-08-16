@@ -20,7 +20,6 @@ export default class Level extends Phaser.Scene {
 
 	/** @returns {void} */
 	editorCreate() {
-
 		// LeftKey
 		const leftKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT);
 
@@ -36,20 +35,10 @@ export default class Level extends Phaser.Scene {
 		// ZKey
 		const zKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Z);
 
-		// luciferPlacehold
-		const luciferPlacehold = this.physics.add.sprite(644, 457, "LuciferPlacehold");
-		luciferPlacehold.scaleX = 0.5;
-		luciferPlacehold.scaleY = 0.5;
-		luciferPlacehold.body.setSize(254, 198, false);
-		this.luciferPlacehold = luciferPlacehold; // ADDED CRITICAL ASSIGNMENT
-
-		// REMOVED SINGLE BULLET CREATION
-		// ADDED PROJECTILES GROUP
-		this.projectiles = this.physics.add.group({
-			classType: Phaser.Physics.Arcade.Sprite,
-			defaultKey: 'bullet',
-			maxSize: 10
-		});
+		// FIXED: Create physics-enabled player and assign to this.player
+		this.player = this.physics.add.sprite(639, 550, "Player");
+		this.player.scaleX = 0.25;
+		this.player.scaleY = 0.25;
 
 		this.leftKey = leftKey;
 		this.upKey = upKey;
@@ -83,38 +72,46 @@ export default class Level extends Phaser.Scene {
 
 	update() {
 		// Reset velocity
-		this.luciferPlacehold.setVelocity(0, 0);
+		this.player.setVelocity(0, 0);
 
 		// Movement handling
 		if (this.upKey.isDown) {
-			this.luciferPlacehold.setVelocityY(-this.playerVelocity);
+			this.player.setVelocityY(-this.playerVelocity);
 			this.updateLastDirection(0, -1);
 		} else if (this.downKey.isDown) {
-			this.luciferPlacehold.setVelocityY(this.playerVelocity);
+			this.player.setVelocityY(this.playerVelocity);
 			this.updateLastDirection(0, 1);
 		}
 
 		if (this.leftKey.isDown) {
-			this.luciferPlacehold.setVelocityX(-this.playerVelocity);
+			this.player.setVelocityX(-this.playerVelocity);
 			this.updateLastDirection(-1, 0);
 		} else if (this.rightKey.isDown) {
-			this.luciferPlacehold.setVelocityX(this.playerVelocity);
+			this.player.setVelocityX(this.playerVelocity);
 			this.updateLastDirection(1, 0);
 		}
 
+		// Normalize diagonal movement
+		if (this.player.body.velocity.x !== 0 && this.player.body.velocity.y !== 0) {
+			this.player.body.velocity.normalize().scale(this.playerVelocity);
+		}
+
 		// Boundary constraints
-		this.luciferPlacehold.x = Phaser.Math.Clamp(
-			this.luciferPlacehold.x, 
-			50, 
-			this.game.config.width - 50
+		const halfWidth = this.player.displayWidth * this.player.scaleX / 2;
+		const halfHeight = this.player.displayHeight * this.player.scaleY / 2;
+		
+		this.player.x = Phaser.Math.Clamp(
+			this.player.x,
+			50 + halfWidth,
+			this.game.config.width - 50 - halfWidth
 		);
-		this.luciferPlacehold.y = Phaser.Math.Clamp(
-			this.luciferPlacehold.y, 
-			50, 
-			this.game.config.height - 50
+		this.player.y = Phaser.Math.Clamp(
+			this.player.y,
+			50 + halfHeight,
+			this.game.config.height - 50 - halfHeight
 		);
 
-		// Shooting - CHANGED TO Z-KEY
+		// Shooting
 		if (this.zKey.isDown && this.time.now > this.lastShotTime + this.shootCooldown) {
 			this.shoot();
 			this.lastShotTime = this.time.now;
@@ -127,27 +124,8 @@ export default class Level extends Phaser.Scene {
 	}
 
 	shoot() {
-		// Create bullet at player position offset by 30px in direction
-		const x = this.luciferPlacehold.x + this.lastDirection.x * 30;
-		const y = this.luciferPlacehold.y + this.lastDirection.y * 30;
-
-		// Get bullet from pool
-		const bullet = this.projectiles.get(x, y);
-		
-		if (bullet) {
-			// Set bullet properties
-			bullet.scaleX = 0.1;
-			bullet.scaleY = 0.1;
-			bullet.body.setSize(100, 100, true); // Adjusted collision size
-			
-			bullet.setActive(true)
-				.setVisible(true)
-				.setVelocity(
-					this.lastDirection.x * this.bulletSpeed,
-					this.lastDirection.y * this.bulletSpeed
-				)
-				.setLifespan(2000); // Auto-remove after 2 seconds
-		}
+		// Placeholder for shooting logic
+		console.log("Shooting!", this.lastDirection);
 	}
 	/* END-USER-CODE */
 }

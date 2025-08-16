@@ -15,6 +15,11 @@
                 "url": "assets/LuciferPlacehold.png",
                 "type": "image",
                 "key": "LuciferPlacehold"
+            },
+            {
+                "url": "assets/Player.svg",
+                "type": "image",
+                "key": "Player"
             }
         ]
     },

@@ -13,32 +13,16 @@
     },
     "displayList": [
         {
-            "type": "ArcadeSprite",
-            "id": "431c51dd-d215-4f6b-b402-3db89d52e6ff",
-            "label": "luciferPlacehold",
+            "type": "Image",
+            "id": "5f52a3e8-a23f-43c5-a2c0-22fea8342fc3",
+            "label": "player",
             "texture": {
-                "key": "LuciferPlacehold"
+                "key": "Player"
             },
-            "x": 644,
-            "y": 457,
-            "scaleX": 0.5,
-            "scaleY": 0.5,
-            "body.width": 254,
-            "body.height": 198
-        },
-        {
-            "type": "ArcadeSprite",
-            "id": "8dfffd93-ef05-4d6e-9120-d1e9a772e7dc",
-            "label": "bullet",
-            "texture": {
-                "key": "bullet"
-            },
-            "x": 1549,
-            "y": 771,
-            "scaleX": 0.1,
-            "scaleY": 0.1,
-            "body.width": 1024,
-            "body.height": 1024
+            "x": 639,
+            "y": 550,
+            "scaleX": 0.25,
+            "scaleY": 0.25
         }
     ],
     "plainObjects": [
