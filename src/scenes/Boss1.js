@@ -1,4 +1,5 @@
 // src/gameobjects/Boss1.js
+
 export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, texture = 'Boss1') {
     super(scene, x, y, texture);
@@ -11,22 +12,128 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
     this.setOrigin(0.5);
     this.setScale(0.125);
 
-    // movement
+    // core parameters
     this.speed = 100;
+
+    // define your states in a fixed sequence, each with its duration and entry method
+    this.states = [
+      { key: 'BOUNCE', duration: 5000, enter: this.enterBounce },
+      { key: 'CHASE',  duration: 5000, enter: this.enterChase },
+      { key: 'SHOOT',  duration: 5000, enter: this.enterShoot }
+    ];
+    this.currentState = 0;
+
+    // kick off the first state immediately
+    this.scheduleState(0);
+  }
+
+  // preload your assets
+  static preload(scene) {
+    scene.load.image('Boss1', 'assets/Star.png');
+    scene.load.image('Bullet', 'assets/bossbullet.png'); // for the SHOOT state
+  }
+
+  // schedules and enters the state at index `i`
+  scheduleState(i) {
+    // clear any existing timers
+    if (this.stateTimer) {
+      this.stateTimer.remove(false);
+    }
+
+    this.currentState = i;
+    const { key, duration, enter } = this.states[i];
+
+    // invoke the entry logic for this state
+    enter.call(this, key);
+
+    // after `duration`, advance to the next state (wrap-around)
+    this.stateTimer = this.scene.time.addEvent({
+      delay: duration,
+      callback: () => this.scheduleState((i + 1) % this.states.length)
+    });
+  }
+
+  // -------------------------
+  // State entry callbacks
+  // -------------------------
+
+  // bounce around the world bounds
+  enterBounce() {
+    this.stateName = 'BOUNCE';
+    const vx = Phaser.Math.Between(-this.speed, this.speed);
+    const vy = Phaser.Math.Between(-this.speed, this.speed);
+
     this.body
-      .setVelocity(this.speed, this.speed)
+      .setVelocity(vx, vy)
       .setCollideWorldBounds(true)
       .setBounce(1);
   }
 
-  // asset loader
-  static preload(scene) {
-    scene.load.image('Boss1', 'assets/Star.png');
+  // chase the player (requires scene.player to exist)
+  enterChase() {
+    this.stateName = 'CHASE';
+    this.body.setCollideWorldBounds(false);
+    this.scene.physics.moveTo(
+      this,
+      this.scene.player.x,
+      this.scene.player.y,
+      this.speed
+    );
   }
 
-  // per-frame logic (optional)
+  // stop and fire a volley of bullets
+  enterShoot() {
+    this.stateName = 'SHOOT';
+    this.body.setVelocity(0);
+    this.body.setCollideWorldBounds(false);
+
+    // spray 10 bullets at 500ms intervals
+    this.shootTimer = this.scene.time.addEvent({
+      delay: 500,
+      repeat: 9,
+      callback: this.fireBullet,
+      callbackScope: this
+    });
+  }
+
+  /// inside src/gameobjects/Boss1.js
+
+  // spawn and fire one bullet toward the player
+  fireBullet() {
+    const bullet = this.scene.physics.add.image(this.x, this.y, 'Bullet');
+    bullet.setScale(0.1);
+
+    // calculate angle from boss → player
+    const targetX = this.scene.player.x;
+    const targetY = this.scene.player.y;
+    const angleRad = Phaser.Math.Angle.Between(this.x, this.y, targetX, targetY);
+
+    // rotate the bullet sprite to face in its travel direction
+    bullet.setRotation(angleRad);
+
+    // give it velocity along that angle at speed 200
+    this.scene.physics.velocityFromRotation(angleRad, 200, bullet.body.velocity);
+
+    // optional: destroy bullet after 3 seconds
+    this.scene.time.delayedCall(3000, () => bullet.destroy());
+  }
+
+
+  // -------------------------
+  // Phaser update loop
+  // -------------------------
   update(time, delta) {
-    // example: rotate at 90 degrees/sec
+    // always rotate for some visual flair
     this.angle += 90 * (delta / 1000);
+
+    if (this.stateName === 'CHASE') {
+      // if the player moves, keep updating velocity toward them
+      this.scene.physics.moveTo(
+        this,
+        this.scene.player.x,
+        this.scene.player.y,
+        this.speed
+      );
+    }
   }
 }

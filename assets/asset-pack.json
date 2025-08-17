@@ -12,6 +12,13 @@
                 "type": "image"
             },
             {
+                "url": [
+                    "assets/Laser2.wav"
+                ],
+                "type": "audio",
+                "key": "Laser2"
+            },
+            {
                 "url": "assets/LuciferPlacehold.png",
                 "type": "image",
                 "key": "LuciferPlacehold"
