@@ -45,6 +45,7 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
                 exit: this.exitPhase4
             },
             { key: 'PHASE5', duration: 20000, enter: this.enterPhase5,  exit: this.exitPhase5 },
+            { key: 'PHASE6', duration:  7000, enter: this.enterPhase6, exit: this.exitPhase6 },
             {
                 key: 'BOUNCE',
                 duration: 5000,
@@ -479,11 +480,13 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
 
     // once arrived, jam at center & start edge-spawns
     this.scene.time.delayedCall(travelTime, () => {
+
+      
       this.body.setVelocity(0);
       this.setPosition(cx, cy);
 
       this.edgeBulletEvent = this.scene.time.addEvent({
-        delay:    100,               // spawn every 0.5s
+        delay:    75,               // spawn every 0.5s
         loop:     true,
         callback: this.spawnEdgeBullet,
         callbackScope: this
@@ -492,6 +495,10 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
   }
 
   spawnEdgeBullet() {
+
+  if (this.stateName !== 'PHASE5') {
+            return;
+      }
   const { width, height } = this.scene.scale;
   const cx = width  / 2;
   const cy = height / 2;
@@ -538,6 +545,35 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
       this.edgeBulletEvent = null;
     }
   }
+
+  enterPhase6() {
+  this.stateName        = 'PHASE6';
+  this.shootEvent.paused = true;  // if you want all other shooting off
+
+  // compute center coords
+  const { width, height } = this.scene.scale;
+  const cx = width  / 2;
+  const cy = height / 2;
+
+  // slide boss to center
+  this.scene.physics.moveTo(this, cx, cy, this.speed);
+
+  // once he arrives, zero‐out velocity to stand still
+  const dist       = Phaser.Math.Distance.Between(this.x, this.y, cx, cy);
+  const travelTime = (dist / this.speed) * 1000;  // ms
+
+  this.scene.time.delayedCall(travelTime, () => {
+    this.body.setVelocity(0, 0);
+    this.setPosition(cx, cy);
+    // optional: trigger an idle animation or visual cue here
+  });
+}
+
+exitPhase6() {
+  this.stateName = 'STOP';
+  // no timers to clear—boss just stays still
+}
+
 
 
 
