@@ -18,7 +18,8 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
     // define your states in a fixed sequence, each with its duration and entry method
     this.states = [
         { key: 'START', duration: 4500, enter: this.enterStart },
-        { key: 'PHASE1', duration: 51800, enter: this.enterPhase1 },
+        { key: 'PHASE1', duration: 44000, enter: this.enterPhase1 },
+        { key: 'PHASE2', duration: 7800, enter: this.enterPhase2 },
         { key: 'BOUNCE', duration: 5000, enter: this.enterBounce },
         { key: 'CHASE',  duration: 5000, enter: this.enterChase },
         { key: 'SHOOT',  duration: 5000, enter: this.enterShoot }
@@ -30,12 +31,24 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
 
     //Bullet Group
     this.bossBullets = scene.physics.add.group();
+
+    this.wallBullets = scene.physics.add.group({
+    immovable: true,      // can’t be knocked around
+    allowGravity: false,
+    });
+
+
+
+
+
   }
 
   // preload your assets
   static preload(scene) {
     scene.load.image('Boss1', 'assets/Star.png');
     scene.load.image('Bullet', 'assets/bossbullet.png'); // for the SHOOT state
+    scene.load.image('WallBullet', 'assets/wallbullet.svg');
+
   }
 
   // schedules and enters the state at index `i`
@@ -83,19 +96,11 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
 
 // inside your state class…
 
-// inside your state class…
 
 enterPhase1() {
   this.stateName = 'PHASE1';
 
-  // ensure we have a bullet pool
-  if (!this.bullets) {
-    this.bullets = this.scene.physics.add.group({
-      classType: Phaser.Physics.Arcade.Image,
-      defaultKey: 'bullet',
-      maxSize: 50
-    });
-  }
+  
 
   // assume you store your player on the scene as `this.scene.player`
   this.player = this.scene.player;
@@ -110,11 +115,12 @@ enterPhase1() {
 }
 
 shootFan() {
-  const fanAngle   = 60;      
-  const bulletCnt  = 5;
-  const speed      = 400;
+  const fanAngle    = 60;      // total spread in degrees
+  const bulletCnt   = 5;
+  const speed       = 400;
+  const errorMargin = 5;       // max ± degrees of random error
 
-  // angle toward player in radians → degrees
+  // compute the base aim toward player
   const baseRad = Phaser.Math.Angle.Between(
     this.x, this.y,
     this.player.x, this.player.y
@@ -124,7 +130,12 @@ shootFan() {
   const step = fanAngle / (bulletCnt - 1);
 
   for (let i = 0; i < bulletCnt; i++) {
-    const angleDeg = baseDeg - fanAngle / 2 + step * i;
+    // ideal fan angle
+    const idealDeg = baseDeg - fanAngle / 2 + step * i;
+
+    // add a random “miss” of up to ±errorMargin°
+    const errorDeg = Phaser.Math.FloatBetween(-errorMargin, errorMargin);
+    const finalDeg = idealDeg + errorDeg;
 
     const b = this.bossBullets.get(this.x, this.y, "Bullet");
     b.setScale(0.1);
@@ -132,18 +143,18 @@ shootFan() {
 
     b.setActive(true);
     b.setVisible(true);
+    // rotate sprite to travel direction
+    b.setAngle(finalDeg);
 
-    // point the sprite toward its movement direction
-    b.setAngle(angleDeg);
-
-    // fire it off
+    // shoot it
     this.scene.physics.velocityFromAngle(
-      angleDeg,
+      finalDeg,
       speed,
       b.body.velocity
     );
   }
 }
+
 
 
 exitPhase1() {
@@ -153,6 +164,82 @@ exitPhase1() {
   }
   this.stateName = 'STOP';
 }
+
+// inside your state class…
+
+enterPhase2() {
+  this.stateName = 'PHASE2';
+
+  const { width, height } = this.scene.scale;
+  const spacing        = 32;     // px between spawns
+  const wallDelay      = 1800;   // ms between each wall side
+  const bulletInterval = 100;    // ms between each shot
+  const spawnOffset    = 10;     // px offscreen
+  const speed          = 200;    // slide-in speed
+
+  const sides = ['top', 'right', 'bottom', 'left'];
+  sides.forEach((side, sideIdx) => {
+    this.scene.time.delayedCall(wallDelay * sideIdx, () => {
+      // build X or Y positions along that wall
+      const max      = (side==='top'||side==='bottom') ? width : height;
+      const positions = [];
+      for (let i=0; i<=max; i+=spacing) positions.push(i);
+
+      // fire them one at a time
+      positions.forEach((pos, i) => {
+        this.scene.time.delayedCall(bulletInterval * i, () => {
+          let x, y, angleDeg;
+          switch(side) {
+            case 'top':
+              x = pos; y = -spawnOffset; angleDeg = 90; break;
+            case 'bottom':
+              x = pos; y = height+spawnOffset; angleDeg = -90; break;
+            case 'left':
+              x = -spawnOffset; y = pos; angleDeg = 0; break;
+            case 'right':
+              x = width+spawnOffset; y = pos; angleDeg = 180; break;
+          }
+          this._spawnWallBullet(x, y, angleDeg, speed, spawnOffset);
+        });
+      });
+    });
+  });
+}
+
+_spawnWallBullet(x, y, angleDeg, speed, offset) {
+  // pull from the wallBullets pool
+  const b = this.wallBullets.get(x, y, 'WallBullet');
+  if (!b) return;
+
+  b
+    .setActive(true)
+    .setVisible(true)
+    .setScale(1)
+    .setAngle(angleDeg)
+
+  // slide it in
+  this.scene.physics.velocityFromAngle(angleDeg, speed, b.body.velocity);
+
+  // once it’s crossed `offset` px, jam it on the edge
+  const travelTime = (offset / speed) * 1000;
+  this.scene.time.delayedCall(travelTime, () => {
+    b.body.setVelocity(0);
+    b.body.immovable = true;
+  });
+}
+
+
+
+exitPhase2() {
+/*
+  if (this.bullets) {
+    this.bullets.clear(true, true);
+  }
+  */
+  this.stateName = 'STOP';
+}
+
+
 
 
 

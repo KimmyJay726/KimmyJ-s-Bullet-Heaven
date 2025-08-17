@@ -71,10 +71,33 @@ export default class Level extends Phaser.Scene {
     this.time.delayedCall(3000, () => {
       this.boss1Music.play();
       this.boss = new Boss1(this, 600, 0);
-      this.physics.add.overlap(this.player, this.boss, this.onPlayerHitBoss, null, this);
-      this.physics.add.overlap(this.player, this.boss.bossBullets, this.onPlayerHitBullet, null, this);
-    });
-  }
+      // existing overlaps
+	this.physics.add.overlap(
+		this.player,
+		this.boss,
+		this.onPlayerHitBoss,
+		null,
+		this
+	);
+
+	this.physics.add.overlap(
+		this.player,
+		this.boss.bossBullets,
+		this.onPlayerHitBullet,
+		null,
+		this
+	);
+
+	// ← new: wallBullets should also hurt the player
+	this.physics.add.overlap(
+		this.player,
+		this.boss.wallBullets,
+		this.onPlayerHitWallBullet,
+		null,
+		this
+	);
+		});
+	}
 
   update(time, delta) {
     // Build raw input vector
@@ -188,4 +211,25 @@ export default class Level extends Phaser.Scene {
       this.time.delayedCall(500, () => this.scene.restart());
     }
   }
+
+  onPlayerHitWallBullet(player, wallBullet) {
+  this.hitSfx.play();
+
+  // reset regen timers
+  player.lastDamageTime = this.time.now;
+  player.regenTimer     = 0;
+
+  // subtract HP
+  if (player.hp > 0) {
+    player.hp--;
+    player.setAlpha(player.hp / player.maxHp);
+  }
+
+  // check for death
+  if (player.hp <= 0) {
+    player.setTint(0xff0000);
+    this.time.delayedCall(500, () => this.scene.restart());
+  }
+}
+
 }

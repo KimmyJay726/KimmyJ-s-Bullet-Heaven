@@ -39,6 +39,11 @@
                 "url": "assets/Star.png",
                 "type": "image",
                 "key": "Star"
+            },
+            {
+                "url": "assets/wallbullet.svg",
+                "type": "image",
+                "key": "wallbullet"
             }
         ]
     },
