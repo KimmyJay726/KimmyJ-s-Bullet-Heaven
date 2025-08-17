@@ -51,15 +51,26 @@ export default class Level extends Phaser.Scene {
 
     // spawn boss after delay
     this.time.delayedCall(3000, () => {
-      this.boss = new Boss1(this, 400, 200);
-      this.physics.add.overlap(
-        this.player,
-        this.boss,
-        this.onPlayerHitBoss,
-        null,
-        this
+		this.boss = new Boss1(this, 400, 200);
+		this.physics.add.overlap(
+			this.player,
+			this.boss,
+			this.onPlayerHitBoss,
+			null,
+			this
       );
+		this.physics.add.overlap(
+			this.player,
+			this.boss.bossBullets,
+			this.onPlayerHitBullet,
+			null,
+			this
+  	  );
+
+	  
     });
+
+	
 
 	
   }
@@ -107,7 +118,7 @@ export default class Level extends Phaser.Scene {
 
   onPlayerHitBoss(player, boss) {
 
-	//Play Sound
+	//Play Sounds
 	this.hitSfx.play();
 
     // stamp the time we got hit
@@ -123,7 +134,33 @@ export default class Level extends Phaser.Scene {
     // death
     if (player.hp <= 0) {
       player.setTint(0xff0000);
-      this.time.delayedCall(200, () => this.scene.restart());
+      this.time.delayedCall(500, () => this.scene.restart());
     }
   }
+
+// src/scenes/Level.js
+onPlayerHitBullet(player, bullet) {
+	// immediately remove the bullet
+	bullet.destroy();
+
+	// play your hit sound
+	this.hitSfx.play();
+
+	// stamp damage time & reset regen
+	player.lastDamageTime = this.time.now;
+	player.regenTimer     = 0;
+
+	// subtract 1 HP
+	if (player.hp > 0) {
+		player.hp--;
+		player.setAlpha(Phaser.Math.Clamp(player.hp / player.maxHp, 0, 1));
+	}
+
+	// on death, tint and restart
+	if (player.hp <= 0) {
+		player.setTint(0xff0000);
+		this.time.delayedCall(500, () => this.scene.restart());
+	}
+	}
+
 }

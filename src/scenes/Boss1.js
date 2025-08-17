@@ -25,6 +25,9 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
 
     // kick off the first state immediately
     this.scheduleState(0);
+
+    //Bullet Group
+    this.bossBullets = scene.physics.add.group();
   }
 
   // preload your assets
@@ -99,24 +102,21 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
   /// inside src/gameobjects/Boss1.js
 
   // spawn and fire one bullet toward the player
+  
   fireBullet() {
-    const bullet = this.scene.physics.add.image(this.x, this.y, 'Bullet');
-    bullet.setScale(0.1);
+  // ← use the group instead of scene.physics.add.image
+  const bullet = this.bossBullets.create(this.x, this.y, 'Bullet');
+  bullet.setScale(0.1);
 
-    // calculate angle from boss → player
-    const targetX = this.scene.player.x;
-    const targetY = this.scene.player.y;
-    const angleRad = Phaser.Math.Angle.Between(this.x, this.y, targetX, targetY);
+  const angleRad = Phaser.Math.Angle.Between(
+    this.x, this.y,
+    this.scene.player.x, this.scene.player.y
+  );
+  bullet.setRotation(angleRad);
+  this.scene.physics.velocityFromRotation(angleRad, 200, bullet.body.velocity);
 
-    // rotate the bullet sprite to face in its travel direction
-    bullet.setRotation(angleRad);
-
-    // give it velocity along that angle at speed 200
-    this.scene.physics.velocityFromRotation(angleRad, 200, bullet.body.velocity);
-
-    // optional: destroy bullet after 3 seconds
-    this.scene.time.delayedCall(3000, () => bullet.destroy());
-  }
+  this.scene.time.delayedCall(3000, () => bullet.destroy());
+}
 
 
   // -------------------------
