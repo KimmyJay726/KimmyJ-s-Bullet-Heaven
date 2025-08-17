@@ -1,5 +1,3 @@
-// src/index.js (or wherever you’re instantiating Phaser.Game)
-
 import MainMenu from "./scenes/MainMenu.js";
 import Level    from "./scenes/Level.js";
 import Preload  from "./scenes/Preload.js";
@@ -24,27 +22,26 @@ window.addEventListener('load', function () {
     }
   });
 
-  // register all your scenes
-  game.scene.add("Preload",   Preload);
-  game.scene.add("MainMenu",  MainMenu);
-  game.scene.add("Level",     Level);
-  // Boot is set to auto-start (third arg = true)
-  game.scene.add("Boot",      Boot, true);
+  // Register scenes; Boot is auto‐started (third arg = true)
+  game.scene.add("Preload",  Preload);
+  game.scene.add("MainMenu", MainMenu);
+  game.scene.add("Level",    Level);
+  game.scene.add("Boot",     Boot, true);
 });
 
+// Boot is defined inline here; you can also extract to src/scenes/Boot.js
 class Boot extends Phaser.Scene {
   constructor() {
     super("Boot");
   }
 
   preload() {
-    // load any “always‐there” assets (e.g. UI skins, minimal fonts)
+    // Always‐needed assets (e.g. UI skins, small fonts, loading bar images)
     this.load.pack("pack", "assets/preload-asset-pack.json");
   }
 
   create() {
-    // instead of kicking off Preload, go straight to MainMenu
-	this.scene.start("Preload");
-    this.scene.start("MainMenu");
+    // Chain into your Preload scene
+    this.scene.start("Preload");
   }
 }
