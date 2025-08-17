@@ -41,6 +41,11 @@
                 "key": "Star"
             },
             {
+                "url": "assets/starshard.svg",
+                "type": "image",
+                "key": "starshard"
+            },
+            {
                 "url": "assets/wallbullet.svg",
                 "type": "image",
                 "key": "wallbullet"
