@@ -40,10 +40,11 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
             },
             {
                 key: 'PHASE4',
-                duration: 10000,
+                duration: 15600,
                 enter: this.enterPhase4,
                 exit: this.exitPhase4
             },
+            { key: 'PHASE5', duration: 20000, enter: this.enterPhase5,  exit: this.exitPhase5 },
             {
                 key: 'BOUNCE',
                 duration: 5000,
@@ -62,6 +63,14 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
         ];
         this.currentState = 0;
 
+        // start the repeating shoot event
+        this.shootEvent = this.scene.time.addEvent({
+            delay: 1800, // every 1 second
+            callback: this.shootFan,
+            callbackScope: this,
+            loop: true
+        });
+
         // kick off the first state immediately
         this.scheduleState(0);
 
@@ -76,8 +85,6 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
         this.starBullets = scene.physics.add.group({
            classType: Phaser.Physics.Arcade.Image,
           defaultKey: 'StarBullet',
-          maxSize: 100,
-          runChildUpdate: false
         });
 
 
@@ -125,18 +132,19 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
     enterStart() {
         this.stateName = 'START';
         this.body.setCollideWorldBounds(false);
+        this.shootEvent.paused = true;
 
         // 1) Fire off the movement
-        this.scene.physics.moveTo(this, 600, 100, this.speed);
+        this.scene.physics.moveTo(this, 640, 100, this.speed);
 
         // 2) Compute how long it will take to get there
-        const distance = Phaser.Math.Distance.Between(this.x, this.y, 600, 100);
+        const distance = Phaser.Math.Distance.Between(this.x, this.y, 640, 100);
         const travelTime = (distance / this.speed) * 1000; // in ms
 
         // 3) Schedule a stop exactly when it arrives
         this.scene.time.delayedCall(travelTime, () => {
             this.body.setVelocity(0, 0);
-            this.setPosition(600, 100); // snap to exact target
+            this.setPosition(640, 100); // snap to exact target
             this.stateName = 'STOP';
         });
     }
@@ -145,20 +153,15 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
 
 
     enterPhase1() {
+      
         this.stateName = 'PHASE1';
-
+        this.shootEvent.paused = false;
 
 
         // assume you store your player on the scene as `this.scene.player`
         this.player = this.scene.player;
 
-        // start the repeating shoot event
-        this.shootEvent = this.scene.time.addEvent({
-            delay: 1800, // every 1 second
-            callback: this.shootFan,
-            callbackScope: this,
-            loop: true
-        });
+        
     }
 
     shootFan() {
@@ -220,7 +223,9 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
     // inside src/gameobjects/Boss1.js
 
     enterPhase2() {
+      
         this.stateName = 'PHASE2';
+        this.shootEvent.paused = false;
 
         const {
             width,
@@ -228,7 +233,7 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
         } = this.scene.scale;
         const spacing = 32; // px between spawns
         const wallDelay = 1800; // ms between each wall side
-        const bulletInterval = 50; // ms between each shot
+        const bulletInterval = 100; // ms between each shot
         const spawnOffset = 10; // px offscreen
         const speed = 200; // slide-in speed
 
@@ -410,8 +415,13 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
 
         // every `spawnRate` ms, spawn a bullet at a random x along the bottom
         this.phase4Event = this.scene.time.addEvent({
+          
             delay: spawnRate,
             callback: () => {
+
+                if (this.stateName !== 'PHASE4') {
+                  return;
+                }
                 const xPos = Phaser.Math.Between(0, width);
                 const yPos = height + 10; // just off‐screen
 
@@ -447,6 +457,87 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
         }
         this.stateName = 'STOP';
     }
+
+     // -----------------------
+  // PHASE5: Center + Edge-Bullets
+  // -----------------------
+
+  enterPhase5() {
+    this.stateName         = 'PHASE5';
+    this.player            = this.scene.player;
+    this.shootEvent.paused = true;            // optional: pause fan shot
+
+    // move to center
+    const { width, height } = this.scene.scale;
+    const cx = width / 2;
+    const cy = height / 2;
+    this.scene.physics.moveTo(this, cx, cy, this.speed);
+
+    // compute travel time
+    const dist       = Phaser.Math.Distance.Between(this.x, this.y, cx, cy);
+    const travelTime = (dist / this.speed) * 1000;
+
+    // once arrived, jam at center & start edge-spawns
+    this.scene.time.delayedCall(travelTime, () => {
+      this.body.setVelocity(0);
+      this.setPosition(cx, cy);
+
+      this.edgeBulletEvent = this.scene.time.addEvent({
+        delay:    100,               // spawn every 0.5s
+        loop:     true,
+        callback: this.spawnEdgeBullet,
+        callbackScope: this
+      });
+    });
+  }
+
+  spawnEdgeBullet() {
+  const { width, height } = this.scene.scale;
+  const cx = width  / 2;
+  const cy = height / 2;
+
+  // pick random edge
+  const side = Phaser.Math.Between(0, 3);
+  let x, y;
+  switch (side) {
+    case 0: x = Phaser.Math.Between(0, width);  y = 0;           break;
+    case 1: x = width;                          y = Phaser.Math.Between(0, height); break;
+    case 2: x = Phaser.Math.Between(0, width);  y = height;      break;
+    default: x = 0;                             y = Phaser.Math.Between(0, height); break;
+  }
+
+  // angle and get bullet
+  const angle = Phaser.Math.RadToDeg(
+    Phaser.Math.Angle.Between(x, y, cx, cy)
+  );
+  const b = this.bossBullets.get(x, y, 'Bullet');
+  if (!b) return;
+
+  b
+    .setActive(true)
+    .setVisible(true)
+    .setScale(0.1)
+    .setAngle(angle);
+  b.body.reset(x, y);
+  this.scene.physics.velocityFromAngle(angle, 100, b.body.velocity);
+
+  // compute travel time (ms) and schedule destroy
+  const dist   = Phaser.Math.Distance.Between(x, y, cx, cy);
+  const timeMs = (dist / 100) * 1000;
+  this.scene.time.delayedCall(timeMs, () => {
+    if (b.active) {
+      b.destroy();    // or: this.bossBullets.killAndHide(b);
+    }
+  });
+}
+
+  exitPhase5() {
+    this.stateName = 'STOP';
+    if (this.edgeBulletEvent) {
+      this.edgeBulletEvent.remove(false);
+      this.edgeBulletEvent = null;
+    }
+  }
 
 
 

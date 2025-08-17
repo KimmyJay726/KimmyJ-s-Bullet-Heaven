@@ -52,7 +52,7 @@ export default class Level extends Phaser.Scene {
                 loop: true,
                 volume: 0.4
             });
-            this.boss = new Boss1(this, 600, 0);
+            this.boss = new Boss1(this, 640, 0);
 
             // Overlaps
             this.physics.add.overlap(this.player, this.boss, () => this.player.takeDamage(), null, this);
