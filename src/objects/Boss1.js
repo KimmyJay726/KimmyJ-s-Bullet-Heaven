@@ -46,6 +46,7 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
             },
             { key: 'PHASE5', duration: 20000, enter: this.enterPhase5,  exit: this.exitPhase5 },
             { key: 'PHASE6', duration:  7000, enter: this.enterPhase6, exit: this.exitPhase6 },
+            { key: 'PHASE7', duration:  6100, enter: this.enterPhase7, exit: this.exitPhase7 },
             {
                 key: 'BOUNCE',
                 duration: 5000,
@@ -533,6 +534,10 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
   b.body.reset(x, y);
   this.scene.physics.velocityFromAngle(angle, 100, b.body.velocity);
 
+  // circle hitbox
+  const r = b.displayWidth / 2;
+  b.body.setCircle(r, (b.width - b.displayWidth) / 2, (b.height - b.displayHeight) / 2);
+
   // compute travel time (ms) and schedule destroy
   const dist   = Phaser.Math.Distance.Between(x, y, cx, cy);
   const timeMs = (dist / 100) * 1000;
@@ -578,6 +583,27 @@ exitPhase6() {
   this.stateName = 'STOP';
   // no timers to clear—boss just stays still
 }
+
+enterPhase7() {
+        this.stateName = 'PHASE7';
+        this.body.setCollideWorldBounds(false);
+        this.shootEvent.paused = true;
+
+        // 1) Fire off the movement
+        this.scene.physics.moveTo(this, 640, 100, this.speed);
+
+        // 2) Compute how long it will take to get there
+        const distance = Phaser.Math.Distance.Between(this.x, this.y, 640, 100);
+        const travelTime = (distance / this.speed) * 1000; // in ms
+
+        // 3) Schedule a stop exactly when it arrives
+        this.scene.time.delayedCall(travelTime, () => {
+            this.body.setVelocity(0, 0);
+            this.setPosition(640, 100); // snap to exact target
+            this.stateName = 'STOP';
+        });
+    }
+
 
 
 
