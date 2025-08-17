@@ -9,6 +9,11 @@
                 "key": "03-IMAGE-MATERIAL-2"
             },
             {
+                "url": "assets/angelbullet.svg",
+                "type": "image",
+                "key": "angelbullet"
+            },
+            {
                 "url": "assets/bullet.png",
                 "type": "image",
                 "key": "bullet"

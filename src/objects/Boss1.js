@@ -88,6 +88,10 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
           defaultKey: 'StarBullet',
         });
 
+        this.angelBullets = scene.physics.add.group({
+           classType: Phaser.Physics.Arcade.Image,
+          defaultKey: 'AngelBullet',
+        });
 
 
 
@@ -99,6 +103,7 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
         scene.load.image('Bullet', 'assets/bossbullet.png'); // for the SHOOT state
         scene.load.image('WallBullet', 'assets/wallbullet.svg');
         scene.load.image('StarBullet', 'assets/starshard.svg');
+        scene.load.image('AngelBullet', 'assets/angelbullet.svg');
 
     }
 
@@ -426,14 +431,14 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
                 const xPos = Phaser.Math.Between(0, width);
                 const yPos = height + 10; // just off‐screen
 
-                const b = this.bossBullets.get(xPos, yPos, 'Bullet');
+                const b = this.bossBullets.get(xPos, yPos, 'AngelBullet');
                 if (!b) return;
 
                 b
                     .setActive(true)
                     .setVisible(true)
-                    .setScale(0.1)
-                    .setAngle(-90); // point sprite upward
+                    .setScale(0.125)
+                    .setAngle(90); // point sprite upward
 
                 // circle hitbox
                 const r = b.displayWidth / 2;

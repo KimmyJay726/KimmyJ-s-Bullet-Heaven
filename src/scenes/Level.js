@@ -59,6 +59,7 @@ export default class Level extends Phaser.Scene {
             this.physics.add.overlap(this.player, this.boss.bossBullets, () => this.player.takeDamage(), null, this);
             this.physics.add.overlap(this.player, this.boss.wallBullets, () => this.player.takeDamage(), null, this);
             this.physics.add.overlap(this.player,this.boss.starBullets,() => this.player.takeDamage(), null, this);
+            this.physics.add.overlap(this.player,this.boss.angelBullets,() => this.player.takeDamage(), null, this);
         });
     }
 
