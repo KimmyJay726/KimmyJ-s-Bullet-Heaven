@@ -18,6 +18,9 @@ export default class Level extends Phaser.Scene {
     Boss1.preload(this);
 
 	this.load.audio('hitSfx', 'assets/Laser2.wav');
+
+	this.load.audio('boss1Music', 'assets/03-IMAGE-MATERIAL-2.mp3'); // Boss 1 Music
+
   }
 
   create() {
@@ -29,6 +32,11 @@ export default class Level extends Phaser.Scene {
 
 	// sounds
 	this.hitSfx = this.sound.add('hitSfx');
+
+	this.boss1Music = this.sound.add('boss1Music', {
+    loop: true,
+    volume: 0.4
+  	});
 
     // player sprite + physics
     this.player = this.physics.add
@@ -49,9 +57,11 @@ export default class Level extends Phaser.Scene {
     this.player.regenDelay    = 5000;  // ms until regen kicks in
     this.player.regenInterval = 1000;  // ms per +1 hp
 
-    // spawn boss after delay
+    // spawn boss after delay (DETERMINE BOSS HERE)
+	
     this.time.delayedCall(3000, () => {
-		this.boss = new Boss1(this, 400, 200);
+		this.boss1Music.play();
+		this.boss = new Boss1(this, 600, 0);
 		this.physics.add.overlap(
 			this.player,
 			this.boss,

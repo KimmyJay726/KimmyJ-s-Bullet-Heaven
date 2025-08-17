@@ -2,6 +2,13 @@
     "section1": {
         "files": [
             {
+                "url": [
+                    "assets/03-IMAGE-MATERIAL-2.mp3"
+                ],
+                "type": "audio",
+                "key": "03-IMAGE-MATERIAL-2"
+            },
+            {
                 "url": "assets/bullet.png",
                 "type": "image",
                 "key": "bullet"

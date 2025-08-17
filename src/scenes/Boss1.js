@@ -17,9 +17,10 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
 
     // define your states in a fixed sequence, each with its duration and entry method
     this.states = [
-      { key: 'BOUNCE', duration: 5000, enter: this.enterBounce },
-      { key: 'CHASE',  duration: 5000, enter: this.enterChase },
-      { key: 'SHOOT',  duration: 5000, enter: this.enterShoot }
+        { key: 'START', duration: 50000, enter: this.enterStart },
+        { key: 'BOUNCE', duration: 5000, enter: this.enterBounce },
+        { key: 'CHASE',  duration: 5000, enter: this.enterChase },
+        { key: 'SHOOT',  duration: 5000, enter: this.enterShoot }
     ];
     this.currentState = 0;
 
@@ -59,6 +60,25 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
   // -------------------------
   // State entry callbacks
   // -------------------------
+
+  enterStart() {
+  this.stateName = 'START';
+  this.body.setCollideWorldBounds(false);
+
+  // 1) Fire off the movement
+  this.scene.physics.moveTo(this, 600, 100, this.speed);
+
+  // 2) Compute how long it will take to get there
+  const distance = Phaser.Math.Distance.Between(this.x, this.y, 600, 100);
+  const travelTime = (distance / this.speed) * 1000; // in ms
+
+  // 3) Schedule a stop exactly when it arrives
+  this.scene.time.delayedCall(travelTime, () => {
+    this.body.setVelocity(0, 0);
+    this.setPosition(600, 100);    // snap to exact target
+    this.stateName = 'STOP';
+  });
+}
 
   // bounce around the world bounds
   enterBounce() {
