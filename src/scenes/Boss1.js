@@ -17,7 +17,8 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
 
     // define your states in a fixed sequence, each with its duration and entry method
     this.states = [
-        { key: 'START', duration: 50000, enter: this.enterStart },
+        { key: 'START', duration: 5000, enter: this.enterStart },
+        { key: 'PHASE1', duration: 50000, enter: this.enterPhase1 },
         { key: 'BOUNCE', duration: 5000, enter: this.enterBounce },
         { key: 'CHASE',  duration: 5000, enter: this.enterChase },
         { key: 'SHOOT',  duration: 5000, enter: this.enterShoot }
@@ -79,6 +80,83 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
     this.stateName = 'STOP';
   });
 }
+
+// inside your state class…
+
+// inside your state class…
+
+enterPhase1() {
+  this.stateName = 'PHASE1';
+
+  // ensure we have a bullet pool
+  if (!this.bullets) {
+    this.bullets = this.scene.physics.add.group({
+      classType: Phaser.Physics.Arcade.Image,
+      defaultKey: 'bullet',
+      maxSize: 50
+    });
+  }
+
+  // assume you store your player on the scene as `this.scene.player`
+  this.player = this.scene.player;
+
+  // start the repeating shoot event
+  this.shootEvent = this.scene.time.addEvent({
+    delay: 1000,              // every 1 second
+    callback: this.shootFan,
+    callbackScope: this,
+    loop: true
+  });
+}
+
+shootFan() {
+  const fanAngle   = 60;      
+  const bulletCnt  = 5;
+  const speed      = 400;
+
+  // angle toward player in radians → degrees
+  const baseRad = Phaser.Math.Angle.Between(
+    this.x, this.y,
+    this.player.x, this.player.y
+  );
+  const baseDeg = Phaser.Math.RadToDeg(baseRad);
+
+  const step = fanAngle / (bulletCnt - 1);
+
+  for (let i = 0; i < bulletCnt; i++) {
+    const angleDeg = baseDeg - fanAngle / 2 + step * i;
+
+    const b = this.bossBullets.get(this.x, this.y, "Bullet");
+    b.setScale(0.1);
+    if (!b) continue;
+
+    b.setActive(true);
+    b.setVisible(true);
+
+    // point the sprite toward its movement direction
+    b.setAngle(angleDeg);
+
+    // fire it off
+    this.scene.physics.velocityFromAngle(
+      angleDeg,
+      speed,
+      b.body.velocity
+    );
+  }
+}
+
+
+exitPhase1() {
+  // stop shooting when leaving PHASE1
+  if (this.shootEvent) {
+    this.shootEvent.remove(false);
+  }
+  this.stateName = 'STOP';
+}
+
+
+
+
 
   // bounce around the world bounds
   enterBounce() {
