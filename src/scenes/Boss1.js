@@ -17,8 +17,8 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
 
     // define your states in a fixed sequence, each with its duration and entry method
     this.states = [
-        { key: 'START', duration: 5000, enter: this.enterStart },
-        { key: 'PHASE1', duration: 50000, enter: this.enterPhase1 },
+        { key: 'START', duration: 4500, enter: this.enterStart },
+        { key: 'PHASE1', duration: 51800, enter: this.enterPhase1 },
         { key: 'BOUNCE', duration: 5000, enter: this.enterBounce },
         { key: 'CHASE',  duration: 5000, enter: this.enterChase },
         { key: 'SHOOT',  duration: 5000, enter: this.enterShoot }
@@ -102,7 +102,7 @@ enterPhase1() {
 
   // start the repeating shoot event
   this.shootEvent = this.scene.time.addEvent({
-    delay: 1000,              // every 1 second
+    delay: 1800,              // every 1 second
     callback: this.shootFan,
     callbackScope: this,
     loop: true

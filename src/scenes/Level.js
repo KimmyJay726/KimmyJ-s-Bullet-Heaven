@@ -5,110 +5,140 @@ export default class Level extends Phaser.Scene {
   constructor() {
     super('Level');
 
-    this.playerVelocity     = 300;
-    this.playerAcceleration = 1200;
-    this.dragAmount         = 1200;
-    this.spinSpeedIdle      = 120;
-    this.spinSpeedMax       = 360;
-    this.colorCycleSpeed    = 90;
+    // Movement
+    this.playerVelocity  = 300;
+    this.dashSpeed       = 600;
+    this.dashDuration    = 200;   // ms
+    this.dashCooldown    = 1000;  // ms
+
+    // Spin & color
+    this.spinSpeedIdle   = 120;
+    this.spinSpeedMax    = 360;
+    this.colorCycleSpeed = 90;
   }
 
   preload() {
     this.load.image('Player', 'assets/player.png');
     Boss1.preload(this);
-
-	this.load.audio('hitSfx', 'assets/Laser2.wav');
-
-	this.load.audio('boss1Music', 'assets/03-IMAGE-MATERIAL-2.mp3'); // Boss 1 Music
+    this.load.audio('hitSfx', 'assets/Laser2.wav');
+    this.load.audio('boss1Music', 'assets/03-IMAGE-MATERIAL-2.mp3');
+	this.load.image('background', 'assets/BulletHeavenBackground.png');
 
   }
 
   create() {
-    // input
-    this.leftKey  = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT);
-    this.upKey    = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP);
-    this.rightKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT);
-    this.downKey  = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN);
+    // Input
+    this.leftKey   = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT);
+    this.upKey     = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP);
+    this.rightKey  = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT);
+    this.downKey   = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN);
+    this.dashKey   = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Z);
 
-	// sounds
-	this.hitSfx = this.sound.add('hitSfx');
+    // Dash state
+    this.canDash      = true;
+    this.isDashing    = false;
+    this.dashTimer    = 0;
+    this.cooldownTimer= 0;
+    this.dashDir      = new Phaser.Math.Vector2();
 
-	this.boss1Music = this.sound.add('boss1Music', {
-    loop: true,
-    volume: 0.4
-  	});
+    // Sounds
+    this.hitSfx     = this.sound.add('hitSfx');
+    this.boss1Music = this.sound.add('boss1Music', { loop: true, volume: 0.4 });
+	
+	// Images
+	this.add.image(this.game.config.width / 2, this.game.config.height / 2, 'background')
+	.setOrigin(0.5, 0.5)
+	.setDepth(-1); // Ensures it's behind other objects
 
-    // player sprite + physics
+
+    // Player
     this.player = this.physics.add
       .sprite(639, 550, 'Player')
       .setScale(0.125)
-      .setOrigin(0.5, 0.603)
-      .setAlpha(1);
+      .setOrigin(0.5, 0.603);
 
-    this.player.body
-      .setDrag(this.dragAmount, this.dragAmount)
-      .setMaxVelocity(this.playerVelocity, this.playerVelocity);
+    this.player.body.setMaxVelocity(this.playerVelocity, this.playerVelocity);
 
-    // health + regen parameters
-    this.player.maxHp         = 100;
-    this.player.hp            = this.player.maxHp;
-    this.player.lastDamageTime= 0;     // ms
-    this.player.regenTimer    = 0;     // accumulator
-    this.player.regenDelay    = 5000;  // ms until regen kicks in
-    this.player.regenInterval = 1000;  // ms per +1 hp
+    // Health & regen
+    this.player.maxHp          = 100;
+    this.player.hp             = this.player.maxHp;
+    this.player.lastDamageTime = 0;
+    this.player.regenTimer     = 0;
+    this.player.regenDelay     = 5000;
+    this.player.regenInterval  = 1000;
 
-    // spawn boss after delay (DETERMINE BOSS HERE)
-	
+    // Boss spawn
     this.time.delayedCall(3000, () => {
-		this.boss1Music.play();
-		this.boss = new Boss1(this, 600, 0);
-		this.physics.add.overlap(
-			this.player,
-			this.boss,
-			this.onPlayerHitBoss,
-			null,
-			this
-      );
-		this.physics.add.overlap(
-			this.player,
-			this.boss.bossBullets,
-			this.onPlayerHitBullet,
-			null,
-			this
-  	  );
-
-	  
+      this.boss1Music.play();
+      this.boss = new Boss1(this, 600, 0);
+      this.physics.add.overlap(this.player, this.boss, this.onPlayerHitBoss, null, this);
+      this.physics.add.overlap(this.player, this.boss.bossBullets, this.onPlayerHitBullet, null, this);
     });
-
-	
-
-	
   }
 
   update(time, delta) {
-    // — movement, spin, bounds, color-cycle (unchanged) —
-    let accX = 0, accY = 0;
-    if (this.leftKey.isDown && !this.rightKey.isDown)  accX = -this.playerAcceleration;
-    else if (this.rightKey.isDown && !this.leftKey.isDown) accX = this.playerAcceleration;
-    if (this.upKey.isDown   && !this.downKey.isDown)   accY = -this.playerAcceleration;
-    else if (this.downKey.isDown && !this.upKey.isDown)    accY = this.playerAcceleration;
-    this.player.setAcceleration(accX, accY);
+    // Build raw input vector
+    const inputVec = new Phaser.Math.Vector2(
+      this.rightKey.isDown - this.leftKey.isDown,
+      this.downKey.isDown  - this.upKey.isDown
+    );
 
+    // Dash initiation
+    if (!this.isDashing && this.canDash && Phaser.Input.Keyboard.JustDown(this.dashKey) && inputVec.lengthSq() > 0) {
+      this.isDashing    = true;
+      this.canDash      = false;
+      this.dashTimer    = 0;
+      this.dashDir.copy(inputVec).normalize();
+    }
+
+    let velocity = new Phaser.Math.Vector2();
+
+    // During dash: override velocity
+    if (this.isDashing) {
+      velocity.copy(this.dashDir).scale(this.dashSpeed);
+
+      this.dashTimer += delta;
+      if (this.dashTimer >= this.dashDuration) {
+        this.isDashing    = false;
+        this.cooldownTimer= 0;
+      }
+
+    } else {
+      // Normal movement (normalized for diagonals)
+      if (inputVec.lengthSq() > 0) {
+        velocity.copy(inputVec).normalize().scale(this.playerVelocity);
+      }
+
+      // Dash cooldown
+      if (!this.canDash) {
+        this.cooldownTimer += delta;
+        if (this.cooldownTimer >= this.dashCooldown) {
+          this.canDash = true;
+        }
+      }
+    }
+
+    // Apply velocity
+    this.player.setVelocity(velocity.x, velocity.y);
+
+    // Spin based on speed
     const speed      = this.player.body.velocity.length();
-    const speedRatio = Phaser.Math.Clamp(speed / this.playerVelocity, 0, 1);
-    const spinRate   = Phaser.Math.Linear(this.spinSpeedIdle, this.spinSpeedMax, speedRatio);
+    const ratio      = Phaser.Math.Clamp(speed / this.playerVelocity, 0, 1);
+    const spinRate   = Phaser.Math.Linear(this.spinSpeedIdle, this.spinSpeedMax, ratio);
     this.player.setAngularVelocity(spinRate);
 
+    // Clamp to bounds
     const halfW = this.player.displayWidth  / 2;
     const halfH = this.player.displayHeight / 2;
     this.player.x = Phaser.Math.Clamp(this.player.x, 50 + halfW, this.game.config.width  - 50 - halfW);
     this.player.y = Phaser.Math.Clamp(this.player.y, 50 + halfH, this.game.config.height - 50 - halfH);
 
+    // Color cycle
     const hue      = ((time * this.colorCycleSpeed) / 1000 % 360) / 360;
     const rgbColor = Phaser.Display.Color.HSVToRGB(hue, 0.1, 1);
     this.player.setTint(rgbColor.color);
 
-    // natural regeneration
+    // Health regeneration
     if (this.player.hp < this.player.maxHp) {
       const sinceHit = time - this.player.lastDamageTime;
       if (sinceHit > this.player.regenDelay) {
@@ -127,50 +157,35 @@ export default class Level extends Phaser.Scene {
   }
 
   onPlayerHitBoss(player, boss) {
-
-	//Play Sounds
-	this.hitSfx.play();
-
-    // stamp the time we got hit
+    this.hitSfx.play();
     player.lastDamageTime = this.time.now;
     player.regenTimer     = 0;
 
-    // subtract HP
     if (player.hp > 0) {
       player.hp--;
-      player.setAlpha(Phaser.Math.Clamp(player.hp / player.maxHp, 0, 1));
+      player.setAlpha(player.hp / player.maxHp);
     }
 
-    // death
     if (player.hp <= 0) {
       player.setTint(0xff0000);
       this.time.delayedCall(500, () => this.scene.restart());
     }
   }
 
-// src/scenes/Level.js
-onPlayerHitBullet(player, bullet) {
-	// immediately remove the bullet
-	bullet.destroy();
+  onPlayerHitBullet(player, bullet) {
+    bullet.destroy();
+    this.hitSfx.play();
+    player.lastDamageTime = this.time.now;
+    player.regenTimer     = 0;
 
-	// play your hit sound
-	this.hitSfx.play();
+    if (player.hp > 0) {
+      player.hp--;
+      player.setAlpha(player.hp / player.maxHp);
+    }
 
-	// stamp damage time & reset regen
-	player.lastDamageTime = this.time.now;
-	player.regenTimer     = 0;
-
-	// subtract 1 HP
-	if (player.hp > 0) {
-		player.hp--;
-		player.setAlpha(Phaser.Math.Clamp(player.hp / player.maxHp, 0, 1));
-	}
-
-	// on death, tint and restart
-	if (player.hp <= 0) {
-		player.setTint(0xff0000);
-		this.time.delayedCall(500, () => this.scene.restart());
-	}
-	}
-
+    if (player.hp <= 0) {
+      player.setTint(0xff0000);
+      this.time.delayedCall(500, () => this.scene.restart());
+    }
+  }
 }
