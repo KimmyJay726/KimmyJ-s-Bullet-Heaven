@@ -146,6 +146,9 @@ shootFan() {
     // rotate sprite to travel direction
     b.setAngle(finalDeg);
 
+     const radius = b.displayWidth / 2;
+     b.body.setCircle(radius, (b.width - b.displayWidth) / 2, (b.height - b.displayHeight) / 2);
+
     // shoot it
     this.scene.physics.velocityFromAngle(
       finalDeg,
@@ -206,27 +209,44 @@ enterPhase2() {
   });
 }
 
-_spawnWallBullet(x, y, angleDeg, speed, offset) {
-  // pull from the wallBullets pool
-  const b = this.wallBullets.get(x, y, 'WallBullet');
-  if (!b) return;
+_spawnWallBullet(x, y, angleDeg, speed, offset, side) {
+  const spike = this.wallBullets.get(x, y, 'WallBullet');
+  if (!spike) return;
 
-  b
+  spike
     .setActive(true)
     .setVisible(true)
     .setScale(1)
-    .setAngle(angleDeg)
+    .setAngle(angleDeg);
 
   // slide it in
-  this.scene.physics.velocityFromAngle(angleDeg, speed, b.body.velocity);
+  this.scene.physics.velocityFromAngle(angleDeg, speed, spike.body.velocity);
+
+  // — ADJUST HITBOX FOR ROOF & FLOOR —
+  const bodyWidth  = spike.displayWidth;
+  const bodyHeight = spike.displayHeight + 50;
+
+  // set body size to match sprite
+  spike.body.setSize(bodyWidth, bodyHeight);
+
+  if (side === 'top') {
+    // push the hitbox downward by its own height
+    spike.body.setOffset(0, bodyHeight);
+  }
+  else if (side === 'bottom') {
+    // pull the hitbox upward so it hugs the bottom edge
+    spike.body.setOffset(0, -bodyHeight);
+  }
+  // for left/right walls you can leave offset at (0,0) or adjust X if needed
 
   // once it’s crossed `offset` px, jam it on the edge
   const travelTime = (offset / speed) * 1000;
   this.scene.time.delayedCall(travelTime, () => {
-    b.body.setVelocity(0);
-    b.body.immovable = true;
+    spike.body.setVelocity(0);
+    spike.body.immovable = true;
   });
 }
+
 
 
 
@@ -290,17 +310,21 @@ exitPhase2() {
   
   fireBullet() {
   // ← use the group instead of scene.physics.add.image
-  const bullet = this.bossBullets.create(this.x, this.y, 'Bullet');
-  bullet.setScale(0.1);
+  const b = this.bossBullets.create(this.x, this.y, 'Bullet');
+  b.setScale(0.1);
 
   const angleRad = Phaser.Math.Angle.Between(
     this.x, this.y,
     this.scene.player.x, this.scene.player.y
   );
-  bullet.setRotation(angleRad);
-  this.scene.physics.velocityFromRotation(angleRad, 200, bullet.body.velocity);
+  b.setRotation(angleRad);
 
-  this.scene.time.delayedCall(3000, () => bullet.destroy());
+   const radius = b.displayWidth / 2;
+  b.body.setCircle(radius, (b.width - b.displayWidth) / 2, (b.height - b.displayHeight) / 2);
+  
+  this.scene.physics.velocityFromRotation(angleRad, 200, b.body.velocity);
+
+  this.scene.time.delayedCall(3000, () => b.destroy());
 }
 
 
