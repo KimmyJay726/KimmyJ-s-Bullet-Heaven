@@ -26,7 +26,7 @@ export default class Level extends Phaser.Scene {
         Boss1.preload(this);
         this.load.audio('hitSfx', 'assets/Laser2.wav');
         this.load.audio('boss1Music', 'assets/03-IMAGE-MATERIAL-2.mp3');
-        this.load.image('background', 'assets/BulletHeavenBackground.png');
+        this.load.image('background', 'assets/InGameBackground.png');
     }
 
     create() {

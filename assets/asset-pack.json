@@ -24,6 +24,11 @@
                 "type": "image"
             },
             {
+                "url": "assets/InGameBackground.png",
+                "type": "image",
+                "key": "InGameBackground"
+            },
+            {
                 "url": [
                     "assets/Laser2.wav"
                 ],
@@ -34,6 +39,13 @@
                 "url": "assets/LuciferPlacehold.png",
                 "type": "image",
                 "key": "LuciferPlacehold"
+            },
+            {
+                "url": [
+                    "assets/MenuMusic.mp3"
+                ],
+                "type": "audio",
+                "key": "MenuMusic"
             },
             {
                 "url": "assets/Player.svg",
