@@ -14,6 +14,7 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
 
         // core parameters
         this.speed = 100;
+        this.spinSpeed = 90;   
 
         // define your states in a fixed sequence, each with its duration and entry method
         this.states = [{
@@ -48,20 +49,16 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
             { key: 'PHASE6', duration:  7000, enter: this.enterPhase6, exit: this.exitPhase6 },
             { key: 'PHASE7', duration:  6100, enter: this.enterPhase7, exit: this.exitPhase7 },
             {
-                key: 'BOUNCE',
-                duration: 5000,
-                enter: this.enterBounce
+                key: 'PHASE8',
+                duration: 20000,
+                enter:  this.enterPhase8,
+                exit:   this.exitPhase8
             },
             {
                 key: 'CHASE',
                 duration: 5000,
                 enter: this.enterChase
             },
-            {
-                key: 'SHOOT',
-                duration: 5000,
-                enter: this.enterShoot
-            }
         ];
         this.currentState = 0;
 
@@ -605,21 +602,88 @@ enterPhase7() {
     }
 
 
+  enterPhase8() {
+  this.stateName = 'PHASE8';
+  this.player    = this.scene.player;
+
+  // enable wall bounce
+  this.body
+    .setCollideWorldBounds(true)
+    .setBounce(1);
+
+  // define a faster speed for Phase8 (e.g. double the base speed)
+  const phase8Speed = this.speed * 2;
+
+  // pick a random direction at that higher speed
+  const angleRad = Phaser.Math.FloatBetween(0, Math.PI * 2);
+  const vx       = Math.cos(angleRad) * phase8Speed;
+  const vy       = Math.sin(angleRad) * phase8Speed;
+  this.body.setVelocity(vx, vy);
+
+  // start the tight flurry (unchanged)
+  this.phase8Timer = this.scene.time.addEvent({
+    delay:    120,
+    loop:     true,
+    callback: () => this.shootPhase8Bullet(300, 20),
+    callbackScope: this
+  });
+}
 
 
 
+ shootPhase8Bullet(speed, errorMargin) {
+  if (this.stateName !== 'PHASE8') {
+    return;
+  }
 
-    // bounce around the world bounds
-    enterBounce() {
-        this.stateName = 'BOUNCE';
-        const vx = Phaser.Math.Between(-this.speed, this.speed);
-        const vy = Phaser.Math.Between(-this.speed, this.speed);
+  // aim + random spread
+  const baseRad  = Phaser.Math.Angle.Between(this.x, this.y, this.player.x, this.player.y);
+  const baseDeg  = Phaser.Math.RadToDeg(baseRad);
+  const finalDeg = baseDeg + Phaser.Math.FloatBetween(-errorMargin, errorMargin);
 
-        this.body
-            .setVelocity(vx, vy)
-            .setCollideWorldBounds(true)
-            .setBounce(1);
+  const b = this.bossBullets.get(this.x, this.y, 'Bullet');
+  if (!b) return;
+
+  b.setActive(true)
+   .setVisible(true)
+   .setScale(0.1)
+   .setAngle(finalDeg);
+
+  // tighten hit-circle
+  const r = b.displayWidth / 2;
+  b.body.setCircle(r,
+    (b.width  - b.displayWidth) / 2,
+    (b.height - b.displayHeight) / 2
+  );
+
+  // fire out
+  this.scene.physics.velocityFromAngle(finalDeg, speed, b.body.velocity);
+
+  // auto-kill in 3s
+  this.scene.time.delayedCall(3000, () => {
+    if (b.active) {
+      b.destroy();
     }
+  });
+}
+
+
+
+exitPhase8() {
+  // stop shooting
+  if (this.phase8Timer) {
+    this.phase8Timer.remove(false);
+    this.phase8Timer = null;
+  }
+
+  // disable bounce
+  this.body
+      .setCollideWorldBounds(false)
+      .setBounce(0);
+
+  this.stateName = null;
+}
+
 
     // chase the player (requires scene.player to exist)
     enterChase() {
@@ -633,51 +697,13 @@ enterPhase7() {
         );
     }
 
-    // stop and fire a volley of bullets
-    enterShoot() {
-        this.stateName = 'SHOOT';
-        this.body.setVelocity(0);
-        this.body.setCollideWorldBounds(false);
-
-        // spray 10 bullets at 500ms intervals
-        this.shootTimer = this.scene.time.addEvent({
-            delay: 500,
-            repeat: 9,
-            callback: this.fireBullet,
-            callbackScope: this
-        });
-    }
-
-    /// inside src/gameobjects/Boss1.js
-
-    // spawn and fire one bullet toward the player
-
-    fireBullet() {
-        // ← use the group instead of scene.physics.add.image
-        const b = this.bossBullets.create(this.x, this.y, 'Bullet');
-        b.setScale(0.1);
-
-        const angleRad = Phaser.Math.Angle.Between(
-            this.x, this.y,
-            this.scene.player.x, this.scene.player.y
-        );
-        b.setRotation(angleRad);
-
-        const radius = b.displayWidth / 2;
-        b.body.setCircle(radius, (b.width - b.displayWidth) / 2, (b.height - b.displayHeight) / 2);
-
-        this.scene.physics.velocityFromRotation(angleRad, 200, b.body.velocity);
-
-        this.scene.time.delayedCall(3000, () => b.destroy());
-    }
-
 
     // -------------------------
     // Phaser update loop
     // -------------------------
     update(time, delta) {
         // always rotate for some visual flair
-        this.angle += 90 * (delta / 1000);
+        this.angle += this.spinSpeed * (delta / 1000);
 
         if (this.stateName === 'CHASE') {
             // if the player moves, keep updating velocity toward them
