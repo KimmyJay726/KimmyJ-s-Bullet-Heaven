@@ -71,10 +71,10 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
             },
             {
                 key: 'PHASE9',
-                duration: 5000,
+                duration: 20000,
                 enter: this.enterPhase9,
                 exit:  this.exitPhase9
-            },
+            }
         ];
         this.currentState = 0;
 
@@ -121,29 +121,42 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
 
     }
 
-    // schedules and enters the state at index `i`
-    scheduleState(i) {
-        // clear any existing timers
-        if (this.stateTimer) {
-            this.stateTimer.remove(false);
-        }
+scheduleState(i) {
+  // 1) If i is out of bounds, reset to your real “start” index
+  const START_INDEX = 0; // or whatever the valid first state is
+  if (!Number.isInteger(i) || !this.states[i]) {
+    //console.warn(`Invalid state index ${i}, resetting to ${4}`);
+    return this.scheduleState(4);
+  }
 
-        this.currentState = i;
-        const {
-            key,
-            duration,
-            enter
-        } = this.states[i];
+  // 2) Tear down any existing timer
+  if (this.stateTimer) {
+    this.stateTimer.remove(false);
+  }
 
-        // invoke the entry logic for this state
-        enter.call(this, key);
+  // 3) Pull out the state data
+  const { key, duration, enter } = this.states[i];
+  this.currentState = i;
 
-        // after `duration`, advance to the next state (wrap-around)
-        this.stateTimer = this.scene.time.addEvent({
-            delay: duration,
-            callback: () => this.scheduleState((i + 1) % this.states.length)
-        });
-    }
+  // 4) Call enter, passing the key if you rely on it inside
+  this.stateName = key;
+  enter.call(this, key);
+
+  // 5) Compute next index, wrapping or jumping back to PHASE3
+  const rawNext = (key === 'PHASE9')
+    ? this.phase3Index
+    : i + 1;
+  const nextIndex = Phaser.Math.Wrap(rawNext, 0, this.states.length);
+
+  // 6) Schedule the transition asynchronously
+  this.stateTimer = this.scene.time.addEvent({
+    delay:    duration,
+    callback: () => this.scheduleState(nextIndex)
+  });
+}
+
+
+
 
     // -------------------------
     // State entry callbacks
@@ -165,7 +178,7 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
         this.scene.time.delayedCall(travelTime, () => {
             this.body.setVelocity(0, 0);
             this.setPosition(640, 100); // snap to exact target
-            this.stateName = 'STOP';
+
         });
     }
 
@@ -235,7 +248,7 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
     exitPhase1() {
         // stop shooting when leaving PHASE1
 
-        this.stateName = 'STOP';
+
     }
 
     // inside your state class…
@@ -353,7 +366,7 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
             this.bullets.clear(true, true);
           }
           */
-        this.stateName = 'STOP';
+  
     }
 
     // -------------------------
@@ -418,7 +431,7 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
 
     exitPhase3() {
 
-        this.stateName = 'STOP';
+
     }
 
 
@@ -478,7 +491,7 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
         if (this.phase4Event) {
             this.phase4Event.remove(false);
         }
-        this.stateName = 'STOP';
+
     }
 
     // -----------------------
@@ -584,7 +597,7 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
     }
 
     exitPhase5() {
-        this.stateName = 'STOP';
+
         if (this.edgeBulletEvent) {
             this.edgeBulletEvent.remove(false);
             this.edgeBulletEvent = null;
@@ -619,7 +632,7 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
     }
 
     exitPhase6() {
-        this.stateName = 'STOP';
+
         // no timers to clear—boss just stays still
     }
 
@@ -640,7 +653,7 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
         this.scene.time.delayedCall(travelTime, () => {
             this.body.setVelocity(0, 0);
             this.setPosition(640, 100); // snap to exact target
-            this.stateName = 'STOP';
+
         });
     }
 
@@ -770,7 +783,7 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
         // always rotate for some visual flair
         this.angle += this.spinSpeed * (delta / 1000);
 
-        if (this.stateName === 'CHASE') {
+        if (this.stateName === 'PHASE9') {
             // if the player moves, keep updating velocity toward them
             this.scene.physics.moveTo(
                 this,
