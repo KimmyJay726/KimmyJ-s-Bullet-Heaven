@@ -5,9 +5,9 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
-    // ----- Pause bookkeeping -----
+    // Pause tracking
     this.isPaused = false;
-    this.trackedTimers = new Set(); // any delayedCall/addEvent you want frozen
+    this.trackedTimers = new Set();
     this.stateTimer = null;
     this.stateStartTime = 0;
     this.stateDuration = 0;
@@ -16,27 +16,16 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
     this._savedVelocity = new Phaser.Math.Vector2();
     this._savedAngular = 0;
 
-    // If your game uses a separate pause overlay that calls scene.pause(),
-    // these keep the boss in sync with that global pause/resume.
+    // Sync with scene pause/resume (including overlay + tab blur)
     scene.events.on('pause', this.onScenePause, this);
     scene.events.on('resume', this.onSceneResume, this);
 
-    // (Optional) Local ESC toggle; remove if you centralize pause elsewhere.
-    this.escapeKey = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
-    this.escapeKey.on('down', () => {
-      if (this.isPaused) this.resumeBossFight();
-      else this.pauseBossFight();
-    });
-
-    // basic setup
-    this.setOrigin(0.5);
-    this.setScale(0.125);
-
-    // core parameters
+    // Basic setup
+    this.setOrigin(0.5).setScale(0.125);
     this.speed = 100;
     this.spinSpeed = 90;
 
-    // states
+    // States
     this.states = [
       { key: 'START',  duration:  4500, enter: this.enterStart },
       { key: 'PHASE1', duration: 44000, enter: this.enterPhase1 },
@@ -49,17 +38,17 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
       { key: 'PHASE8', duration: 20000, enter: this.enterPhase8, exit: this.exitPhase8 },
       { key: 'PHASE9', duration: 20000, enter: this.enterPhase9, exit: this.exitPhase9 }
     ];
-    this.currentState = 0;
 
-    // repeating shoot event (tracked so it pauses/resumes cleanly)
-    this.shootEvent = this.trackTimer(this.scene.time.addEvent({
+    // Shoot event
+    this.shootEvent = this.trackTimer(scene.time.addEvent({
       delay: 1800,
       callback: this.shootFan,
       callbackScope: this,
       loop: true
     }));
 
-    // start
+
+    // Start
     this.scheduleState(0);
 
     // bullets...
@@ -77,118 +66,92 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
     scene.load.image('AngelBullet', 'assets/angelbullet.svg');
   }
 
-  // ----- Helper to track any timer/delayedCall you create -----
   trackTimer(evt) {
     this.trackedTimers.add(evt);
     return evt;
   }
 
-  // ----- State scheduling (pause-safe) -----
   scheduleState(i) {
-    const START_INDEX = 0;
-    if (!Number.isInteger(i) || !this.states[i]) {
-      return this.scheduleState(4); // your chosen fallback
-    }
-
-    if (this.stateTimer) {
-      this.stateTimer.remove(false);
-      this.stateTimer = null;
-    }
+    if (!Number.isInteger(i) || !this.states[i]) return this.scheduleState(4);
+    if (this.stateTimer) this.stateTimer.remove(false);
 
     const { key, duration, enter } = this.states[i];
     this.currentState = i;
     this.stateName = key;
 
-    // Enter state
-    enter.call(this, key);
+    // Ensure we keep the Boss1 context and that enter exists
+    if (typeof enter === 'function') enter.call(this, key);
 
-    // Compute next index now and store it for resume
     const rawNext = (key === 'PHASE9') ? this.phase3Index : i + 1;
-    const nextIndex = Phaser.Math.Wrap(rawNext, 0, this.states.length);
-    this.nextStateIndex = nextIndex;
+    this.nextStateIndex = Phaser.Math.Wrap(rawNext, 0, this.states.length);
 
-    // Bookkeeping for pause-safe timing
-    this.stateStartTime = this.scene.time.now;
-    this.stateDuration  = duration;
+    // Guard scene.time access
+    const now = this.scene && this.scene.time ? this.scene.time.now : 0;
+    this.stateStartTime = now;
+    this.stateDuration = duration;
     this.remainingStateTime = duration;
 
-    // Create the transition timer
-    this.stateTimer = this.scene.time.addEvent({
-      delay: duration,
-      callback: () => this.scheduleState(nextIndex)
-    });
+    if (this.scene && this.scene.time) {
+      this.stateTimer = this.scene.time.addEvent({
+        delay: duration,
+        callback: () => this.scheduleState(this.nextStateIndex)
+      });
+    }
   }
 
-  // ----- Pause / resume that freeze all timers and physics -----
   pauseBossFight() {
     if (this.isPaused) return;
     this.isPaused = true;
 
-    // Capture remaining time for the current state and rebuild later
     if (this.stateTimer) {
-      const now = this.scene.time.now;
-      const elapsed = Math.max(0, now - this.stateStartTime);
+      const now = this.scene && this.scene.time ? this.scene.time.now : this.stateStartTime;
+      const elapsed = now - this.stateStartTime;
       this.remainingStateTime = Math.max(0, this.stateDuration - elapsed);
       this.stateTimer.remove(false);
       this.stateTimer = null;
     }
 
-    // Pause repeating and auxiliary timers
     if (this.shootEvent) this.shootEvent.paused = true;
-    for (const t of this.trackedTimers) {
-      if (!t.hasDispatched) t.paused = true;
+    for (const t of this.trackedTimers) if (!t.hasDispatched) t.paused = true;
+
+    // Body guards
+    if (this.body) {
+      this._savedVelocity.copy(this.body.velocity);
+      this._savedAngular = this.body.angularVelocity || 0;
+      this.body.setVelocity(0, 0);
+      this.setAngularVelocity(0);
+      this.body.moves = false;
     }
-
-    // Freeze motion/spin
-    this._savedVelocity.copy(this.body.velocity);
-    this._savedAngular = this.body.angularVelocity || 0;
-    this.body.setVelocity(0, 0);
-    this.setAngularVelocity(0);
-    this.body.moves = false;
-
-    // Optional: pause entire scene + audio (comment out if using overlay for this)
-    // this.scene.sound.pauseAll();
-    // this.scene.scene.pause();
   }
 
   resumeBossFight() {
     if (!this.isPaused) return;
     this.isPaused = false;
 
-    // Recreate the state transition timer with remaining time
-    if (this.remainingStateTime > 0) {
+    if (this.remainingStateTime > 0 && this.scene && this.scene.time) {
       this.stateStartTime = this.scene.time.now;
-      this.stateDuration = this.remainingStateTime;
       const delay = this.remainingStateTime;
       this.remainingStateTime = 0;
-
       this.stateTimer = this.scene.time.addEvent({
         delay,
         callback: () => this.scheduleState(this.nextStateIndex)
       });
     }
 
-    // Resume timers
     if (this.shootEvent) this.shootEvent.paused = false;
-    for (const t of this.trackedTimers) {
-      if (!t.hasDispatched) t.paused = false;
+    for (const t of this.trackedTimers) if (!t.hasDispatched) t.paused = false;
+
+    if (this.body) {
+      this.body.moves = true;
+      this.body.setVelocity(this._savedVelocity.x, this._savedVelocity.y);
+      this.setAngularVelocity(this._savedAngular);
     }
-
-    // Restore motion/spin
-    this.body.moves = true;
-    this.body.setVelocity(this._savedVelocity.x, this._savedVelocity.y);
-    this.setAngularVelocity(this._savedAngular);
-
-    // Optional: resume scene + audio (comment out if using overlay for this)
-    // this.scene.scene.resume();
-    // this.scene.sound.resumeAll();
   }
 
-  // If the scene is paused externally (e.g., overlay), keep the state machine in sync.
   onScenePause() { this.pauseBossFight(); }
-  onSceneResume() { this.resumeBossFight(); }
+  onSceneResume() { this.resumeBossFight();}
 
-
+  
 
 
     // -------------------------
@@ -230,50 +193,61 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
 
     }
 
-    shootFan() {
-        const fanAngle = 60;
-        const bulletCnt = 5;
-        const speed = 400;
-        const errorMargin = 5;
+shootFan() {
+    const fanAngle = 60;
+    const bulletCnt = 5;
+    const speed = 400;
+    const errorMargin = 5;
 
-        const baseDeg = Phaser.Math.RadToDeg(
-            Phaser.Math.Angle.Between(this.x, this.y, this.player.x, this.player.y)
-        );
+    // Make sure player exists before calculating angle
+    if (!this.player || typeof this.player.x !== 'number' || typeof this.player.y !== 'number') {
+        return; // no target to shoot at
+    }
 
-        const step = fanAngle / (bulletCnt - 1);
+    const baseDeg = Phaser.Math.RadToDeg(
+        Phaser.Math.Angle.Between(this.x, this.y, this.player.x, this.player.y)
+    );
 
-        for (let i = 0; i < bulletCnt; i++) {
-            const idealDeg = baseDeg - fanAngle / 2 + step * i;
-            const finalDeg = idealDeg + Phaser.Math.FloatBetween(-errorMargin, errorMargin);
+    const step = fanAngle / (bulletCnt - 1);
 
-            // grab one from the starBullets pool
-            const b = this.starBullets.get(this.x, this.y);
-            if (!b) {
-                // pool exhausted
-                continue;
-            }
+    // Make sure starBullets group exists and has a get() method
+    if (!this.starBullets || typeof this.starBullets.get !== 'function') {
+        console.warn('starBullets group is missing or invalid');
+        return;
+    }
 
-            // reset its physics body & visibility
-            b
-                .setActive(true)
-                .setVisible(true)
-                .setScale(0.05)
-                .setAngle(finalDeg);
+    for (let i = 0; i < bulletCnt; i++) {
+        const idealDeg = baseDeg - fanAngle / 2 + step * i;
+        const finalDeg = idealDeg + Phaser.Math.FloatBetween(-errorMargin, errorMargin);
 
-            // reposition the body
+        // grab one from the starBullets pool
+        const b = this.starBullets.get(this.x, this.y);
+        if (!b) {
+            // pool exhausted
+            continue;
+        }
+
+        b
+            .setActive(true)
+            .setVisible(true)
+            .setScale(0.05)
+            .setAngle(finalDeg);
+
+        if (b.body) {
             b.body.reset(this.x, this.y);
 
-            // tighten hit circle
             const r = b.displayWidth / 2;
-            b.body.setCircle(r,
+            b.body.setCircle(
+                r,
                 (b.width - b.displayWidth) / 2,
                 (b.height - b.displayHeight) / 2
             );
 
-            // launch it
             this.scene.physics.velocityFromAngle(finalDeg, speed, b.body.velocity);
         }
     }
+}
+
 
 
 

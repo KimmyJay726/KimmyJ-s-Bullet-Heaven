@@ -6,7 +6,6 @@ export default class Level extends Phaser.Scene {
     constructor() {
         super('Level');
 
-        // Mirror Player config so we pass it in cleanly
         this.playerConfig = {
             playerVelocity: 300,
             dashSpeed: 600,
@@ -19,18 +18,16 @@ export default class Level extends Phaser.Scene {
     }
 
     preload() {
-        // Delegate to Player
         Player.preload(this);
-
-        // Boss and other assets
         Boss1.preload(this);
+
         this.load.audio('hitSfx', 'assets/Laser2.wav');
         this.load.audio('boss1Music', 'assets/03-IMAGE-MATERIAL-2.mp3');
         this.load.image('background', 'assets/InGameBackground.png');
     }
 
     create() {
-        // 1) Input
+        // Input
         const keys = {
             leftKey: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT),
             upKey: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP),
@@ -39,39 +36,51 @@ export default class Level extends Phaser.Scene {
             dashKey: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Z)
         };
 
-        // 2) Background
+        // Background
         this.add.image(this.scale.width / 2, this.scale.height / 2, 'background')
             .setOrigin(0.5).setDepth(-1);
 
-        // 3) Spawn Player
+        // Player
         this.player = new Player(this, 639, 550, keys, this.playerConfig);
 
-        // 4) Spawn Boss after delay
+        // Boss after delay
         this.time.delayedCall(3000, () => {
-            this.sound.play('boss1Music', {
-                loop: true,
-                volume: 0.4
-            });
+            this.sound.play('boss1Music', { loop: true, volume: 0.4 });
             this.boss = new Boss1(this, 640, 0);
 
-            // Overlaps
             this.physics.add.overlap(this.player, this.boss, () => this.player.takeDamage(), null, this);
             this.physics.add.overlap(this.player, this.boss.bossBullets, () => this.player.takeDamage(), null, this);
             this.physics.add.overlap(this.player, this.boss.wallBullets, () => this.player.takeDamage(), null, this);
-            this.physics.add.overlap(this.player,this.boss.starBullets,() => this.player.takeDamage(), null, this);
-            this.physics.add.overlap(this.player,this.boss.angelBullets,() => this.player.takeDamage(), null, this);
+            this.physics.add.overlap(this.player, this.boss.starBullets, () => this.player.takeDamage(), null, this);
+            this.physics.add.overlap(this.player, this.boss.angelBullets, () => this.player.takeDamage(), null, this);
         });
 
-         this.pauseKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
-
+        // ESC key for pause overlay
+        this.pauseKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
         this.pauseKey.on('down', () => {
-        // If already paused, let the overlay handle the resume
-        if (this.scene.isActive('PauseOverlay')) return;
-
-        // Pause this scene and show the overlay
-        this.scene.pause(); // freezes physics, timers, tweens, and update()
-        this.scene.launch('PauseOverlay', { returnTo: this.sys.settings.key });
+            // Only trigger if THIS scene is active and overlay not already open
+            if (this.scene.isActive(this.sys.settings.key) && !this.scene.isActive('PauseOverlay')) {
+                this.launchPauseOverlay();
+            }
         });
+
+        // Auto‑pause on tab blur
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                if (this.scene.isActive(this.sys.settings.key) && !this.scene.isActive('PauseOverlay')) {
+                    this.launchPauseOverlay();
+                }
+            }
+        });
+    }
+
+    launchPauseOverlay() {
+        this.scene.pause(); // pauses THIS scene
+        this.sound.pauseAll();
+        this.boss?.pauseBossFight();
+
+        // Pass boss to overlay so it can resume timers properly
+        this.scene.launch('PauseOverlay', { returnTo: this.sys.settings.key, boss: this.boss });
     }
 
     update(time, delta) {
