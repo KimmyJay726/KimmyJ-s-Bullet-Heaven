@@ -1,6 +1,8 @@
 import MainMenu from "./scenes/MainMenu.js";
 import Level    from "./scenes/Level.js";
+import PauseOverlay from './scenes/PauseOverlay.js';
 import Preload  from "./scenes/Preload.js";
+
 
 window.addEventListener('load', function () {
 
@@ -26,6 +28,7 @@ window.addEventListener('load', function () {
   game.scene.add("Preload",  Preload);
   game.scene.add("MainMenu", MainMenu);
   game.scene.add("Level",    Level);
+  game.scene.add("PauseOverlay", PauseOverlay);
   game.scene.add("Boot",     Boot, true);
 });
 

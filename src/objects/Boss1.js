@@ -1,159 +1,192 @@
-// src/gameobjects/Boss1.js
-
 export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
-    constructor(scene, x, y, texture = 'Boss1') {
-        super(scene, x, y, texture);
+  constructor(scene, x, y, texture = 'Boss1') {
+    super(scene, x, y, texture);
 
-        // add to scene and enable physics body
-        scene.add.existing(this);
-        scene.physics.add.existing(this);
+    scene.add.existing(this);
+    scene.physics.add.existing(this);
 
-        // basic setup
-        this.setOrigin(0.5);
-        this.setScale(0.125);
+    // ----- Pause bookkeeping -----
+    this.isPaused = false;
+    this.trackedTimers = new Set(); // any delayedCall/addEvent you want frozen
+    this.stateTimer = null;
+    this.stateStartTime = 0;
+    this.stateDuration = 0;
+    this.remainingStateTime = 0;
+    this.nextStateIndex = 0;
+    this._savedVelocity = new Phaser.Math.Vector2();
+    this._savedAngular = 0;
 
-        // core parameters
-        this.speed = 100;
-        this.spinSpeed = 90;
+    // If your game uses a separate pause overlay that calls scene.pause(),
+    // these keep the boss in sync with that global pause/resume.
+    scene.events.on('pause', this.onScenePause, this);
+    scene.events.on('resume', this.onSceneResume, this);
 
-        // define your states in a fixed sequence, each with its duration and entry method
-        this.states = [{
-                key: 'START',
-                duration: 4500,
-                enter: this.enterStart
-            },
-            {
-                key: 'PHASE1',
-                duration: 44000,
-                enter: this.enterPhase1
-            },
-            {
-                key: 'PHASE2',
-                duration: 7800,
-                enter: this.enterPhase2,
-                exit: this.exitPhase2
-            },
-            {
-                key: 'PHASE3',
-                duration: 14600,
-                enter: this.enterPhase3,
-                exit: this.exitPhase3
-            },
-            {
-                key: 'PHASE4',
-                duration: 15600,
-                enter: this.enterPhase4,
-                exit: this.exitPhase4
-            },
-            {
-                key: 'PHASE5',
-                duration: 20000,
-                enter: this.enterPhase5,
-                exit: this.exitPhase5
-            },
-            {
-                key: 'PHASE6',
-                duration: 7000,
-                enter: this.enterPhase6,
-                exit: this.exitPhase6
-            },
-            {
-                key: 'PHASE7',
-                duration: 6100,
-                enter: this.enterPhase7,
-                exit: this.exitPhase7
-            },
-            {
-                key: 'PHASE8',
-                duration: 20000,
-                enter: this.enterPhase8,
-                exit: this.exitPhase8
-            },
-            {
-                key: 'PHASE9',
-                duration: 20000,
-                enter: this.enterPhase9,
-                exit:  this.exitPhase9
-            }
-        ];
-        this.currentState = 0;
+    // (Optional) Local ESC toggle; remove if you centralize pause elsewhere.
+    this.escapeKey = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+    this.escapeKey.on('down', () => {
+      if (this.isPaused) this.resumeBossFight();
+      else this.pauseBossFight();
+    });
 
-        // start the repeating shoot event
-        this.shootEvent = this.scene.time.addEvent({
-            delay: 1800, // every 1 second
-            callback: this.shootFan,
-            callbackScope: this,
-            loop: true
-        });
+    // basic setup
+    this.setOrigin(0.5);
+    this.setScale(0.125);
 
-        // kick off the first state immediately
-        this.scheduleState(0);
+    // core parameters
+    this.speed = 100;
+    this.spinSpeed = 90;
 
-        //Bullet Group
-        this.bossBullets = scene.physics.add.group();
+    // states
+    this.states = [
+      { key: 'START',  duration:  4500, enter: this.enterStart },
+      { key: 'PHASE1', duration: 44000, enter: this.enterPhase1 },
+      { key: 'PHASE2', duration:  7800, enter: this.enterPhase2, exit: this.exitPhase2 },
+      { key: 'PHASE3', duration: 14600, enter: this.enterPhase3, exit: this.exitPhase3 },
+      { key: 'PHASE4', duration: 15600, enter: this.enterPhase4, exit: this.exitPhase4 },
+      { key: 'PHASE5', duration: 20000, enter: this.enterPhase5, exit: this.exitPhase5 },
+      { key: 'PHASE6', duration:  7000, enter: this.enterPhase6, exit: this.exitPhase6 },
+      { key: 'PHASE7', duration:  6100, enter: this.enterPhase7, exit: this.exitPhase7 },
+      { key: 'PHASE8', duration: 20000, enter: this.enterPhase8, exit: this.exitPhase8 },
+      { key: 'PHASE9', duration: 20000, enter: this.enterPhase9, exit: this.exitPhase9 }
+    ];
+    this.currentState = 0;
 
-        this.wallBullets = scene.physics.add.group({
-            immovable: true, // can’t be knocked around
-            allowGravity: false,
-        });
+    // repeating shoot event (tracked so it pauses/resumes cleanly)
+    this.shootEvent = this.trackTimer(this.scene.time.addEvent({
+      delay: 1800,
+      callback: this.shootFan,
+      callbackScope: this,
+      loop: true
+    }));
 
-        this.starBullets = scene.physics.add.group({
-            classType: Phaser.Physics.Arcade.Image,
-            defaultKey: 'StarBullet',
-        });
+    // start
+    this.scheduleState(0);
 
-        this.angelBullets = scene.physics.add.group({
-            classType: Phaser.Physics.Arcade.Image,
-            defaultKey: 'AngelBullet',
-        });
-
-
-
-    }
-
-    // preload your assets
-    static preload(scene) {
-        scene.load.image('Boss1', 'assets/Star.png');
-        scene.load.image('Bullet', 'assets/bossbullet.png'); // for the SHOOT state
-        scene.load.image('WallBullet', 'assets/wallbullet.svg');
-        scene.load.image('StarBullet', 'assets/starshard.svg');
-        scene.load.image('AngelBullet', 'assets/angelbullet.svg');
-
-    }
-
-scheduleState(i) {
-  // 1) If i is out of bounds, reset to your real “start” index
-  const START_INDEX = 0; // or whatever the valid first state is
-  if (!Number.isInteger(i) || !this.states[i]) {
-    //console.warn(`Invalid state index ${i}, resetting to ${4}`);
-    return this.scheduleState(4);
+    // bullets...
+    this.bossBullets  = scene.physics.add.group();
+    this.wallBullets  = scene.physics.add.group({ immovable: true, allowGravity: false });
+    this.starBullets  = scene.physics.add.group({ classType: Phaser.Physics.Arcade.Image, defaultKey: 'StarBullet' });
+    this.angelBullets = scene.physics.add.group({ classType: Phaser.Physics.Arcade.Image, defaultKey: 'AngelBullet' });
   }
 
-  // 2) Tear down any existing timer
-  if (this.stateTimer) {
-    this.stateTimer.remove(false);
+  static preload(scene) {
+    scene.load.image('Boss1', 'assets/Star.png');
+    scene.load.image('Bullet', 'assets/bossbullet.png');
+    scene.load.image('WallBullet', 'assets/wallbullet.svg');
+    scene.load.image('StarBullet', 'assets/starshard.svg');
+    scene.load.image('AngelBullet', 'assets/angelbullet.svg');
   }
 
-  // 3) Pull out the state data
-  const { key, duration, enter } = this.states[i];
-  this.currentState = i;
+  // ----- Helper to track any timer/delayedCall you create -----
+  trackTimer(evt) {
+    this.trackedTimers.add(evt);
+    return evt;
+  }
 
-  // 4) Call enter, passing the key if you rely on it inside
-  this.stateName = key;
-  enter.call(this, key);
+  // ----- State scheduling (pause-safe) -----
+  scheduleState(i) {
+    const START_INDEX = 0;
+    if (!Number.isInteger(i) || !this.states[i]) {
+      return this.scheduleState(4); // your chosen fallback
+    }
 
-  // 5) Compute next index, wrapping or jumping back to PHASE3
-  const rawNext = (key === 'PHASE9')
-    ? this.phase3Index
-    : i + 1;
-  const nextIndex = Phaser.Math.Wrap(rawNext, 0, this.states.length);
+    if (this.stateTimer) {
+      this.stateTimer.remove(false);
+      this.stateTimer = null;
+    }
 
-  // 6) Schedule the transition asynchronously
-  this.stateTimer = this.scene.time.addEvent({
-    delay:    duration,
-    callback: () => this.scheduleState(nextIndex)
-  });
-}
+    const { key, duration, enter } = this.states[i];
+    this.currentState = i;
+    this.stateName = key;
+
+    // Enter state
+    enter.call(this, key);
+
+    // Compute next index now and store it for resume
+    const rawNext = (key === 'PHASE9') ? this.phase3Index : i + 1;
+    const nextIndex = Phaser.Math.Wrap(rawNext, 0, this.states.length);
+    this.nextStateIndex = nextIndex;
+
+    // Bookkeeping for pause-safe timing
+    this.stateStartTime = this.scene.time.now;
+    this.stateDuration  = duration;
+    this.remainingStateTime = duration;
+
+    // Create the transition timer
+    this.stateTimer = this.scene.time.addEvent({
+      delay: duration,
+      callback: () => this.scheduleState(nextIndex)
+    });
+  }
+
+  // ----- Pause / resume that freeze all timers and physics -----
+  pauseBossFight() {
+    if (this.isPaused) return;
+    this.isPaused = true;
+
+    // Capture remaining time for the current state and rebuild later
+    if (this.stateTimer) {
+      const now = this.scene.time.now;
+      const elapsed = Math.max(0, now - this.stateStartTime);
+      this.remainingStateTime = Math.max(0, this.stateDuration - elapsed);
+      this.stateTimer.remove(false);
+      this.stateTimer = null;
+    }
+
+    // Pause repeating and auxiliary timers
+    if (this.shootEvent) this.shootEvent.paused = true;
+    for (const t of this.trackedTimers) {
+      if (!t.hasDispatched) t.paused = true;
+    }
+
+    // Freeze motion/spin
+    this._savedVelocity.copy(this.body.velocity);
+    this._savedAngular = this.body.angularVelocity || 0;
+    this.body.setVelocity(0, 0);
+    this.setAngularVelocity(0);
+    this.body.moves = false;
+
+    // Optional: pause entire scene + audio (comment out if using overlay for this)
+    // this.scene.sound.pauseAll();
+    // this.scene.scene.pause();
+  }
+
+  resumeBossFight() {
+    if (!this.isPaused) return;
+    this.isPaused = false;
+
+    // Recreate the state transition timer with remaining time
+    if (this.remainingStateTime > 0) {
+      this.stateStartTime = this.scene.time.now;
+      this.stateDuration = this.remainingStateTime;
+      const delay = this.remainingStateTime;
+      this.remainingStateTime = 0;
+
+      this.stateTimer = this.scene.time.addEvent({
+        delay,
+        callback: () => this.scheduleState(this.nextStateIndex)
+      });
+    }
+
+    // Resume timers
+    if (this.shootEvent) this.shootEvent.paused = false;
+    for (const t of this.trackedTimers) {
+      if (!t.hasDispatched) t.paused = false;
+    }
+
+    // Restore motion/spin
+    this.body.moves = true;
+    this.body.setVelocity(this._savedVelocity.x, this._savedVelocity.y);
+    this.setAngularVelocity(this._savedAngular);
+
+    // Optional: resume scene + audio (comment out if using overlay for this)
+    // this.scene.scene.resume();
+    // this.scene.sound.resumeAll();
+  }
+
+  // If the scene is paused externally (e.g., overlay), keep the state machine in sync.
+  onScenePause() { this.pauseBossFight(); }
+  onSceneResume() { this.resumeBossFight(); }
 
 
 
@@ -774,6 +807,38 @@ scheduleState(i) {
       this.phase9FanEvent = null;
     }
   }
+
+  // Pause all boss-related events
+pauseBossFight() {
+    this.isPaused = true;
+
+    // Pause shooting and state transitions
+    if (this.shootEvent) this.shootEvent.paused = true;
+    if (this.stateTimer) this.stateTimer.paused = true;
+
+    // Freeze boss movement
+    this.body.moves = false;
+
+    // Pause the whole scene if you want (optional)
+    // this.scene.scene.pause();
+
+    console.log('Boss fight paused');
+}
+
+// Resume them
+resumeBossFight() {
+    this.isPaused = false;
+
+    if (this.shootEvent) this.shootEvent.paused = false;
+    if (this.stateTimer) this.stateTimer.paused = false;
+
+    this.body.moves = true;
+
+    // Resume scene if paused
+    // this.scene.scene.resume();
+
+    console.log('Boss fight resumed');
+}
 
 
     // -------------------------

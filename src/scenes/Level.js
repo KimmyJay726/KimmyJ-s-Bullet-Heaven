@@ -61,6 +61,17 @@ export default class Level extends Phaser.Scene {
             this.physics.add.overlap(this.player,this.boss.starBullets,() => this.player.takeDamage(), null, this);
             this.physics.add.overlap(this.player,this.boss.angelBullets,() => this.player.takeDamage(), null, this);
         });
+
+         this.pauseKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+
+        this.pauseKey.on('down', () => {
+        // If already paused, let the overlay handle the resume
+        if (this.scene.isActive('PauseOverlay')) return;
+
+        // Pause this scene and show the overlay
+        this.scene.pause(); // freezes physics, timers, tweens, and update()
+        this.scene.launch('PauseOverlay', { returnTo: this.sys.settings.key });
+        });
     }
 
     update(time, delta) {
