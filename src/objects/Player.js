@@ -1,126 +1,134 @@
 export default class Player extends Phaser.Physics.Arcade.Sprite {
-    constructor(scene, x, y, inputKeys, config) {
-        super(scene, x, y, 'Player');
-        scene.add.existing(this);
-        scene.physics.add.existing(this);
+  constructor(scene, x, y, inputKeys, config) {
+    super(scene, x, y, 'Player');
+    scene.add.existing(this);
+    scene.physics.add.existing(this);
 
-        // Pull in config constants
-        this.velocity = config.playerVelocity;
-        this.dashSpeed = config.dashSpeed;
-        this.dashDuration = config.dashDuration;
-        this.dashCooldown = config.dashCooldown;
-        this.spinIdle = config.spinSpeedIdle;
-        this.spinMax = config.spinSpeedMax;
-        this.colorSpeed = config.colorCycleSpeed;
+    // Pull in config constants
+    this.velocity     = config.playerVelocity;
+    this.dashSpeed    = config.dashSpeed;
+    this.dashDuration = config.dashDuration;
+    this.dashCooldown = config.dashCooldown;
+    this.spinIdle     = config.spinSpeedIdle;
+    this.spinMax      = config.spinSpeedMax;
+    this.colorSpeed   = config.colorCycleSpeed;
 
-        // Input keys
-        this.keys = inputKeys;
+    // Input keys (arrows + dash passed in from Level)
+    this.keys = inputKeys;
 
-        // Scale & bounds
-        this.setScale(0.125).setOrigin(0.5, 0.603);
-        this.body.setMaxVelocity(this.velocity, this.velocity);
+    // NEW: WASD keys (self-managed so Level doesn't need changes)
+    this.wasd = scene.input.keyboard.addKeys({
+      up: 'W',
+      left: 'A',
+      down: 'S',
+      right: 'D'
+    });
 
-        // Dash state
-        this.canDash = true;
-        this.isDashing = false;
-        this.dashTimer = 0;
+    // Scale & bounds
+    this.setScale(0.125).setOrigin(0.5, 0.603);
+    this.body.setMaxVelocity(this.velocity, this.velocity);
+
+    // Dash state
+    this.canDash       = true;
+    this.isDashing     = false;
+    this.dashTimer     = 0;
+    this.cooldownTimer = 0;
+    this.dashDir       = new Phaser.Math.Vector2();
+
+    // Health & regen
+    this.maxHp          = 100;
+    this.hp             = this.maxHp;
+    this.lastDamageTime = 0;
+    this.regenTimer     = 0;
+    this.regenDelay     = 5000;
+    this.regenInterval  = 1000;
+
+    // Death state
+    this.isDead = false;
+  }
+
+  static preload(scene) {
+    scene.load.image('Player', 'assets/player.svg');
+    scene.load.audio('gameOverMusic', 'assets/Halcyon.mp3');
+    scene.load.audio('playerDeathSfx', 'assets/PlayerDeath.mp3');
+  }
+
+  update(time, delta) {
+    if (this.isDead) {
+      this.setVelocity(0, 0);
+      this.setAngularVelocity(0);
+      return;
+    }
+
+    const { leftKey, rightKey, upKey, downKey, dashKey } = this.keys;
+
+    // Combine Arrow keys + WASD
+    const rightDown = (rightKey && rightKey.isDown) || this.wasd.right.isDown;
+    const leftDown  = (leftKey  && leftKey.isDown)  || this.wasd.left.isDown;
+    const downDown  = (downKey  && downKey.isDown)  || this.wasd.down.isDown;
+    const upDown    = (upKey    && upKey.isDown)    || this.wasd.up.isDown;
+
+    const inputVec = new Phaser.Math.Vector2(
+      (rightDown ? 1 : 0) - (leftDown ? 1 : 0),
+      (downDown ? 1 : 0)  - (upDown ? 1 : 0)
+    );
+
+    if (!this.isDashing && this.canDash && Phaser.Input.Keyboard.JustDown(dashKey) && inputVec.lengthSq()) {
+      this.isDashing = true;
+      this.canDash   = false;
+      this.dashTimer = 0;
+      this.dashDir.copy(inputVec).normalize();
+    }
+
+    let vel = new Phaser.Math.Vector2();
+
+    if (this.isDashing) {
+      vel.copy(this.dashDir).scale(this.dashSpeed);
+      this.dashTimer += delta;
+      if (this.dashTimer >= this.dashDuration) {
+        this.isDashing     = false;
         this.cooldownTimer = 0;
-        this.dashDir = new Phaser.Math.Vector2();
-
-        // Health & regen
-        this.maxHp = 100;
-        this.hp = this.maxHp;
-        this.lastDamageTime = 0;
-        this.regenTimer = 0;
-        this.regenDelay = 5000;
-        this.regenInterval = 1000;
-
-        // Death state
-        this.isDead = false;
+      }
+    } else {
+      if (inputVec.lengthSq()) {
+        vel.copy(inputVec).normalize().scale(this.velocity);
+      }
+      if (!this.canDash) {
+        this.cooldownTimer += delta;
+        if (this.cooldownTimer >= this.dashCooldown) {
+          this.canDash = true;
+        }
+      }
     }
 
-    static preload(scene) {
-        scene.load.image('Player', 'assets/player.svg');
-        scene.load.audio('gameOverMusic', 'assets/Halcyon.mp3');
-        scene.load.audio('playerDeathSfx', 'assets/PlayerDeath.mp3'); // 🔊 death sfx
+    this.setVelocity(vel.x, vel.y);
+
+    const speed = this.body.velocity.length();
+    const ratio = Phaser.Math.Clamp(speed / this.velocity, 0, 1);
+    const spin  = Phaser.Math.Linear(this.spinIdle, this.spinMax, ratio);
+    this.setAngularVelocity(spin);
+
+    const halfW = this.displayWidth / 2;
+    const halfH = this.displayHeight / 2;
+    this.x = Phaser.Math.Clamp(this.x, 50 + halfW, this.scene.game.config.width  - 50 - halfW);
+    this.y = Phaser.Math.Clamp(this.y, 50 + halfH, this.scene.game.config.height - 50 - halfH);
+
+    const hue      = ((time * this.colorSpeed) / 1000 % 360) / 360;
+    const rgbColor = Phaser.Display.Color.HSVToRGB(hue, 0.1, 1);
+    this.setTint(rgbColor.color);
+
+    if (this.hp < this.maxHp) {
+      const sinceHit = time - this.lastDamageTime;
+      if (sinceHit > this.regenDelay) {
+        this.regenTimer += delta;
+        if (this.regenTimer >= this.regenInterval) {
+          this.regenTimer  -= this.regenInterval;
+          this.hp          = Phaser.Math.Clamp(this.hp + 1, 0, this.maxHp);
+          this.setAlpha(this.hp / this.maxHp);
+        }
+      }
     }
-
-
-    update(time, delta) {
-        if (this.isDead) {
-            this.setVelocity(0, 0);
-            this.setAngularVelocity(0);
-            return;
-        }
-
-        const {
-            leftKey,
-            rightKey,
-            upKey,
-            downKey,
-            dashKey
-        } = this.keys;
-        const inputVec = new Phaser.Math.Vector2(
-            rightKey.isDown - leftKey.isDown,
-            downKey.isDown - upKey.isDown
-        );
-
-        if (!this.isDashing && this.canDash && Phaser.Input.Keyboard.JustDown(dashKey) && inputVec.lengthSq()) {
-            this.isDashing = true;
-            this.canDash = false;
-            this.dashTimer = 0;
-            this.dashDir.copy(inputVec).normalize();
-        }
-
-        let vel = new Phaser.Math.Vector2();
-
-        if (this.isDashing) {
-            vel.copy(this.dashDir).scale(this.dashSpeed);
-            this.dashTimer += delta;
-            if (this.dashTimer >= this.dashDuration) {
-                this.isDashing = false;
-                this.cooldownTimer = 0;
-            }
-        } else {
-            if (inputVec.lengthSq()) {
-                vel.copy(inputVec).normalize().scale(this.velocity);
-            }
-            if (!this.canDash) {
-                this.cooldownTimer += delta;
-                if (this.cooldownTimer >= this.dashCooldown) {
-                    this.canDash = true;
-                }
-            }
-        }
-
-        this.setVelocity(vel.x, vel.y);
-
-        const speed = this.body.velocity.length();
-        const ratio = Phaser.Math.Clamp(speed / this.velocity, 0, 1);
-        const spin = Phaser.Math.Linear(this.spinIdle, this.spinMax, ratio);
-        this.setAngularVelocity(spin);
-
-        const halfW = this.displayWidth / 2;
-        const halfH = this.displayHeight / 2;
-        this.x = Phaser.Math.Clamp(this.x, 50 + halfW, this.scene.game.config.width - 50 - halfW);
-        this.y = Phaser.Math.Clamp(this.y, 50 + halfH, this.scene.game.config.height - 50 - halfH);
-
-        const hue = ((time * this.colorSpeed) / 1000 % 360) / 360;
-        const rgbColor = Phaser.Display.Color.HSVToRGB(hue, 0.1, 1);
-        this.setTint(rgbColor.color);
-
-        if (this.hp < this.maxHp) {
-            const sinceHit = time - this.lastDamageTime;
-            if (sinceHit > this.regenDelay) {
-                this.regenTimer += delta;
-                if (this.regenTimer >= this.regenInterval) {
-                    this.regenTimer -= this.regenInterval;
-                    this.hp = Phaser.Math.Clamp(this.hp + 1, 0, this.maxHp);
-                    this.setAlpha(this.hp / this.maxHp);
-                }
-            }
-        }
-    }
+  }
 
     takeDamage(amount = 1) {
         if (this.isDead) return;

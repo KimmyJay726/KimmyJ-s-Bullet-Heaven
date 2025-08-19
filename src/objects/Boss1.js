@@ -33,8 +33,8 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
 
     // States
     this.states = [
-      { key: 'START',  duration:  4500, enter: this.enterStart },
-      { key: 'PHASE1', duration: 44000, enter: this.enterPhase1 },
+      { key: 'START',  duration:  4000, enter: this.enterStart },
+      { key: 'PHASE1', duration: 43600, enter: this.enterPhase1 },
       { key: 'PHASE2', duration:  7800, enter: this.enterPhase2, exit: this.exitPhase2 },
       { key: 'PHASE3', duration: 14600, enter: this.enterPhase3, exit: this.exitPhase3 },
       { key: 'PHASE4', duration: 15600, enter: this.enterPhase4, exit: this.exitPhase4 },

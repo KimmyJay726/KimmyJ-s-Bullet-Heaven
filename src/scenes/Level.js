@@ -28,10 +28,10 @@ export default class Level extends Phaser.Scene {
     this.load.image('background', 'assets/InGameBackground.png');
   }
 
-  create(data) {
+ create(data) {
   this.bossType = data.bossType || 'Boss1';
 
-  // Input setup
+  // Input keys
   const keys = {
     leftKey: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT),
     upKey: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP),
@@ -47,20 +47,23 @@ export default class Level extends Phaser.Scene {
   // Player
   this.player = new Player(this, 639, 550, keys, this.playerConfig);
 
-  // Per-boss music delays (in ms)
-  const bossMusicDelayMap = {
-    Boss1: 1, // e.g., None
-    Boss2: 4000  // e.g., 4 seconds
-  };
+  // Per-boss timing
+  const bossSpawnDelayMap = { Boss1: 1, Boss2: 2500 };
+  const musicStartDelayMap = { Boss1: 3000, Boss2: 5000 }; // independent from spawn
 
+  // Schedule music independently
+  const musicDelay = musicStartDelayMap[this.bossType] ?? 3000;
+  this.time.delayedCall(musicDelay, () => {
+    const musicKey = this.bossType === 'Boss2' ? 'boss2Music' : 'boss1Music';
+    this.sound.play(musicKey, { loop: true, volume: 0.4 });
+  });
+
+  // Boss intro → spawn after its own delay
   this.time.delayedCall(2000, () => {
     this.showBossIntro(this.bossType, () => {
-      this.spawnBoss(this.bossType);
-
-      const delay = bossMusicDelayMap[this.bossType] ?? 3000; // default if not listed
-      this.time.delayedCall(delay, () => {
-        const musicKey = this.bossType === 'Boss2' ? 'boss2Music' : 'boss1Music';
-        this.sound.play(musicKey, { loop: true, volume: 0.4 });
+      const spawnDelay = bossSpawnDelayMap[this.bossType] ?? 0;
+      this.time.delayedCall(spawnDelay, () => {
+        this.spawnBoss(this.bossType);
       });
     });
   });
@@ -86,7 +89,7 @@ export default class Level extends Phaser.Scene {
   showBossIntro(bossType, onComplete) {
     const bossNameMap = {
       Boss1: 'ARCHANGEL INBOUND',
-      Boss2: 'ARCHANGEL INBOUND'
+      Boss2: 'CRASH INBOUND (WIP)'
     };
     const label = bossNameMap[bossType] || 'UNKNOWN FOE';
 
