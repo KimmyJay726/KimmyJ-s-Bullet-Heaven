@@ -75,13 +75,16 @@ export default class Level extends Phaser.Scene {
     }
 
     launchPauseOverlay() {
-        this.scene.pause(); // pauses THIS scene
-        this.sound.pauseAll();
-        this.boss?.pauseBossFight();
+    this.scene.pause(); // pauses THIS scene
+    this.sound.pauseAll();
 
-        // Pass boss to overlay so it can resume timers properly
-        this.scene.launch('PauseOverlay', { returnTo: this.sys.settings.key, boss: this.boss });
+    if (this.boss && this.boss.body) {
+        this.boss.pauseBossFight();
     }
+
+    this.scene.launch('PauseOverlay', { returnTo: this.sys.settings.key, boss: this.boss });
+    }
+
 
     update(time, delta) {
         if (this.player) this.player.update(time, delta);

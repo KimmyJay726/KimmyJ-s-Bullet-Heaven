@@ -24,6 +24,13 @@
                 "type": "image"
             },
             {
+                "url": [
+                    "assets/Halcyon.mp3"
+                ],
+                "type": "audio",
+                "key": "Halcyon"
+            },
+            {
                 "url": "assets/InGameBackground.png",
                 "type": "image",
                 "key": "InGameBackground"

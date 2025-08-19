@@ -25,6 +25,12 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
     this.speed = 100;
     this.spinSpeed = 90;
 
+    // Bullets
+    this.bossBullets  = scene.physics.add.group();
+    this.wallBullets  = scene.physics.add.group({ immovable: true, allowGravity: false });
+    this.starBullets  = scene.physics.add.group({ classType: Phaser.Physics.Arcade.Image, defaultKey: 'StarBullet' });
+    this.angelBullets = scene.physics.add.group({ classType: Phaser.Physics.Arcade.Image, defaultKey: 'AngelBullet' });
+
     // States
     this.states = [
       { key: 'START',  duration:  4500, enter: this.enterStart },
@@ -47,15 +53,11 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
       loop: true
     }));
 
-
     // Start
     this.scheduleState(0);
 
-    // bullets...
-    this.bossBullets  = scene.physics.add.group();
-    this.wallBullets  = scene.physics.add.group({ immovable: true, allowGravity: false });
-    this.starBullets  = scene.physics.add.group({ classType: Phaser.Physics.Arcade.Image, defaultKey: 'StarBullet' });
-    this.angelBullets = scene.physics.add.group({ classType: Phaser.Physics.Arcade.Image, defaultKey: 'AngelBullet' });
+    // Cleanup on destroy to avoid stale listeners firing after a restart
+    this.once('destroy', this._cleanup, this);
   }
 
   static preload(scene) {
@@ -67,7 +69,7 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
   }
 
   trackTimer(evt) {
-    this.trackedTimers.add(evt);
+    if (evt) this.trackedTimers.add(evt);
     return evt;
   }
 
@@ -86,7 +88,7 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
     this.nextStateIndex = Phaser.Math.Wrap(rawNext, 0, this.states.length);
 
     // Guard scene.time access
-    const now = this.scene && this.scene.time ? this.scene.time.now : 0;
+    const now = (this.scene && this.scene.time) ? this.scene.time.now : 0;
     this.stateStartTime = now;
     this.stateDuration = duration;
     this.remainingStateTime = duration;
@@ -96,60 +98,122 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
         delay: duration,
         callback: () => this.scheduleState(this.nextStateIndex)
       });
+      this.trackTimer(this.stateTimer);
     }
   }
 
-  pauseBossFight() {
-    if (this.isPaused) return;
-    this.isPaused = true;
+pauseBossFight() {
+  if (this.isPaused) return;
+  this.isPaused = true;
 
+  if (this.stateTimer) {
+    const now = (this.scene && this.scene.time) ? this.scene.time.now : this.stateStartTime;
+    const elapsed = now - this.stateStartTime;
+    this.remainingStateTime = Math.max(0, this.stateDuration - elapsed);
+    this.stateTimer.remove(false);
+    this.stateTimer = null;
+  }
+
+  if (this.shootEvent) this.shootEvent.paused = true;
+
+  // Always pause every tracked timer
+  for (const t of this.trackedTimers) {
+    if (t) t.paused = true;
+  }
+
+  if (this.body) {
+    this._savedVelocity.copy(this.body.velocity);
+    this._savedAngular = this.body.angularVelocity || 0;
+    this.body.setVelocity(0, 0);
+    if (this.setAngularVelocity) this.setAngularVelocity(0);
+    this.body.moves = false;
+  }
+}
+
+resumeBossFight() {
+  if (!this.isPaused) return;
+  this.isPaused = false;
+
+  if (this.remainingStateTime > 0 && this.scene && this.scene.time) {
+    this.stateStartTime = this.scene.time.now;
+    const delay = this.remainingStateTime;
+    this.remainingStateTime = 0;
+    this.stateTimer = this.scene.time.addEvent({
+      delay,
+      callback: () => this.scheduleState(this.nextStateIndex)
+    });
+    this.trackTimer(this.stateTimer);
+  }
+
+  if (this.shootEvent) this.shootEvent.paused = false;
+
+  // Always resume every tracked timer
+  for (const t of this.trackedTimers) {
+    if (t) t.paused = false;
+  }
+
+  if (this.body) {
+    this.body.moves = true;
+    this.body.setVelocity(this._savedVelocity.x, this._savedVelocity.y);
+    if (this.setAngularVelocity) this.setAngularVelocity(this._savedAngular);
+  }
+}
+
+  onScenePause() {
+    // Ignore scene pause after this object is destroyed
+    if (!this.active) return;
+    this.pauseBossFight();
+  }
+
+  onSceneResume() {
+    if (!this.active) return;
+    this.resumeBossFight();
+  }
+
+  // Optional: if you have an update loop, keep it guarded
+  preUpdate(time, delta) {
+    super.preUpdate(time, delta);
+    if (this.isPaused || !this.body) return;
+    // ...your per-frame logic if needed
+  }
+
+  // Call this before destroy to prevent lingering listeners/timers causing crashes on restarts
+  _cleanup() {
+    // Unsubscribe scene events
+    if (this.scene && this.scene.events) {
+      this.scene.events.off('pause', this.onScenePause, this);
+      this.scene.events.off('resume', this.onSceneResume, this);
+    }
+
+    // Stop timers
     if (this.stateTimer) {
-      const now = this.scene && this.scene.time ? this.scene.time.now : this.stateStartTime;
-      const elapsed = now - this.stateStartTime;
-      this.remainingStateTime = Math.max(0, this.stateDuration - elapsed);
       this.stateTimer.remove(false);
       this.stateTimer = null;
     }
-
-    if (this.shootEvent) this.shootEvent.paused = true;
-    for (const t of this.trackedTimers) if (!t.hasDispatched) t.paused = true;
-
-    // Body guards
-    if (this.body) {
-      this._savedVelocity.copy(this.body.velocity);
-      this._savedAngular = this.body.angularVelocity || 0;
-      this.body.setVelocity(0, 0);
-      this.setAngularVelocity(0);
-      this.body.moves = false;
+    if (this.shootEvent) {
+      this.shootEvent.remove(false);
+      this.shootEvent = null;
     }
+    for (const t of this.trackedTimers) {
+      if (t) t.remove(false);
+    }
+    this.trackedTimers.clear();
+
+    // Clear bullet groups safely
+    const groups = [this.bossBullets, this.wallBullets, this.starBullets, this.angelBullets];
+    for (const g of groups) {
+      if (g && g.clear) g.clear(true, true);
+      if (g && g.destroy) g.destroy();
+    }
+    this.bossBullets = this.wallBullets = this.starBullets = this.angelBullets = null;
   }
 
-  resumeBossFight() {
-    if (!this.isPaused) return;
-    this.isPaused = false;
-
-    if (this.remainingStateTime > 0 && this.scene && this.scene.time) {
-      this.stateStartTime = this.scene.time.now;
-      const delay = this.remainingStateTime;
-      this.remainingStateTime = 0;
-      this.stateTimer = this.scene.time.addEvent({
-        delay,
-        callback: () => this.scheduleState(this.nextStateIndex)
-      });
-    }
-
-    if (this.shootEvent) this.shootEvent.paused = false;
-    for (const t of this.trackedTimers) if (!t.hasDispatched) t.paused = false;
-
-    if (this.body) {
-      this.body.moves = true;
-      this.body.setVelocity(this._savedVelocity.x, this._savedVelocity.y);
-      this.setAngularVelocity(this._savedAngular);
-    }
+  // If you call destroy externally, keep cleanup order safe
+  destroy(fromScene) {
+    // Run cleanup before the body is removed by super.destroy
+    this._cleanup();
+    super.destroy(fromScene);
   }
-
-  onScenePause() { this.pauseBossFight(); }
-  onSceneResume() { this.resumeBossFight();}
 
   
 
@@ -782,37 +846,6 @@ shootFan() {
     }
   }
 
-  // Pause all boss-related events
-pauseBossFight() {
-    this.isPaused = true;
-
-    // Pause shooting and state transitions
-    if (this.shootEvent) this.shootEvent.paused = true;
-    if (this.stateTimer) this.stateTimer.paused = true;
-
-    // Freeze boss movement
-    this.body.moves = false;
-
-    // Pause the whole scene if you want (optional)
-    // this.scene.scene.pause();
-
-    console.log('Boss fight paused');
-}
-
-// Resume them
-resumeBossFight() {
-    this.isPaused = false;
-
-    if (this.shootEvent) this.shootEvent.paused = false;
-    if (this.stateTimer) this.stateTimer.paused = false;
-
-    this.body.moves = true;
-
-    // Resume scene if paused
-    // this.scene.scene.resume();
-
-    console.log('Boss fight resumed');
-}
 
 
     // -------------------------
