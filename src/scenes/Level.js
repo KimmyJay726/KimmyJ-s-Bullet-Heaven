@@ -1,5 +1,6 @@
 // src/scenes/Level.js
 import Boss1 from '../objects/Boss1.js';
+import Boss2 from '../objects/Boss2.js';
 import Player from '../objects/Player.js';
 
 export default class Level extends Phaser.Scene {
@@ -20,13 +21,17 @@ export default class Level extends Phaser.Scene {
     preload() {
         Player.preload(this);
         Boss1.preload(this);
+        Boss2.preload(this);
 
         this.load.audio('hitSfx', 'assets/Laser2.wav');
         this.load.audio('boss1Music', 'assets/03-IMAGE-MATERIAL-2.mp3');
+        this.load.audio('boss2Music', 'assets/Boss2Theme.mp3');
         this.load.image('background', 'assets/InGameBackground.png');
     }
 
-    create() {
+    create(data) {
+        this.bossType = data.bossType || 'Boss1';
+
         // Input
         const keys = {
             leftKey: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT),
@@ -43,28 +48,22 @@ export default class Level extends Phaser.Scene {
         // Player
         this.player = new Player(this, 639, 550, keys, this.playerConfig);
 
-        // Boss after delay
-        this.time.delayedCall(3000, () => {
-            this.sound.play('boss1Music', { loop: true, volume: 0.4 });
-            this.boss = new Boss1(this, 640, 0);
-
-            this.physics.add.overlap(this.player, this.boss, () => this.player.takeDamage(), null, this);
-            this.physics.add.overlap(this.player, this.boss.bossBullets, () => this.player.takeDamage(), null, this);
-            this.physics.add.overlap(this.player, this.boss.wallBullets, () => this.player.takeDamage(), null, this);
-            this.physics.add.overlap(this.player, this.boss.starBullets, () => this.player.takeDamage(), null, this);
-            this.physics.add.overlap(this.player, this.boss.angelBullets, () => this.player.takeDamage(), null, this);
+        // After delay, show boss intro before spawning
+        this.time.delayedCall(2000, () => {
+            this.showBossIntro(this.bossType, () => {
+                this.spawnBoss(this.bossType);
+            });
         });
 
-        // ESC key for pause overlay
+        // Pause
         this.pauseKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
         this.pauseKey.on('down', () => {
-            // Only trigger if THIS scene is active and overlay not already open
             if (this.scene.isActive(this.sys.settings.key) && !this.scene.isActive('PauseOverlay')) {
                 this.launchPauseOverlay();
             }
         });
 
-        // Auto‑pause on tab blur
+        // Auto pause
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
                 if (this.scene.isActive(this.sys.settings.key) && !this.scene.isActive('PauseOverlay')) {
@@ -74,17 +73,70 @@ export default class Level extends Phaser.Scene {
         });
     }
 
+    showBossIntro(bossType, onComplete) {
+  const bossNameMap = {
+    Boss1: 'ARCHANGEL INBOUND',
+    Boss2: 'ARCHANGEL INBOUND'
+  };
+const label = bossNameMap[bossType] || 'UNKNOWN FOE';
+
+  // Dark overlay
+  const overlay = this.add.rectangle(
+    this.scale.width / 2, this.scale.height / 2,
+    this.scale.width, this.scale.height, 0x000000, 0.75
+  ).setDepth(10).setAlpha(0);
+
+  // Boss name text — moved upward
+  const text = this.add.text(
+    this.scale.width / 2, this.scale.height / 4, // <-- upper middle
+    label,
+    { fontFamily: 'Arial', fontSize: '64px', color: '#ff4444' }
+  ).setOrigin(0.5).setDepth(11).setAlpha(0);
+
+  // Fade in → hold → fade out
+  this.tweens.add({
+    targets: [overlay, text],
+    alpha: 1,
+    duration: 500,
+    ease: 'Power2',
+    yoyo: true,
+    hold: 1000,
+    onComplete: () => {
+      overlay.destroy();
+      text.destroy();
+      if (onComplete) onComplete();
+    }
+  });
+}
+
+
+    spawnBoss(type) {
+        if (type === 'Boss2') {
+            this.sound.play('boss2Music', { loop: true, volume: 0.4 });
+            this.boss = new Boss2(this, 640, 0);
+        } else {
+            this.sound.play('boss1Music', { loop: true, volume: 0.4 });
+            this.boss = new Boss1(this, 640, 0);
+        }
+
+        // Collisions
+        this.physics.add.overlap(this.player, this.boss, () => this.player.takeDamage(), null, this);
+        this.physics.add.overlap(this.player, this.boss.bossBullets, () => this.player.takeDamage(), null, this);
+        this.physics.add.overlap(this.player, this.boss.wallBullets, () => this.player.takeDamage(), null, this);
+        this.physics.add.overlap(this.player, this.boss.starBullets, () => this.player.takeDamage(), null, this);
+        this.physics.add.overlap(this.player, this.boss.angelBullets, () => this.player.takeDamage(), null, this);
+    }
+
     launchPauseOverlay() {
-    this.scene.pause(); // pauses THIS scene
-    this.sound.pauseAll();
+        this.scene.pause();
+        this.sound.pauseAll();
 
-    if (this.boss && this.boss.body) {
-        this.boss.pauseBossFight();
+        if (this.boss && this.boss.body) {
+            this.boss.pauseBossFight();
+        }
+
+        this.scene.launch('PauseOverlay', { returnTo: this.sys.settings.key, boss: this.boss });
     }
-
-    this.scene.launch('PauseOverlay', { returnTo: this.sys.settings.key, boss: this.boss });
-    }
-
 
     update(time, delta) {
         if (this.player) this.player.update(time, delta);
