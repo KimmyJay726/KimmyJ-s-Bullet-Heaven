@@ -43,7 +43,7 @@ export default class MainMenu extends Phaser.Scene {
         const bossType =
           Phaser.Utils.Array.GetRandom(this.availableBosses) || 'Boss1';
         this.bgm.stop();
-        this.scene.start('Level', { bossType });
+        this.scene.start('LoadingScene', { bossType });
       }
     );
 
@@ -122,7 +122,7 @@ export default class MainMenu extends Phaser.Scene {
         .on('pointerdown', () => {
           this.closeBossSelect();
           this.bgm.stop();
-          this.scene.start('Level', { bossType });
+          this.scene.start('LoadingScene', { bossType });
         });
 
       bossButtons.push(btn);
