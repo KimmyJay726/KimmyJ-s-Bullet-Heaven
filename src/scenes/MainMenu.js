@@ -27,17 +27,23 @@ export default class MainMenu extends Phaser.Scene {
   create() {
     const { width, height } = this.cameras.main;
 
+    
+
     if (this.textures.exists('menuBg')) {
       this.add.image(width / 2, height / 2, 'menuBg').setOrigin(0.5);
     }
 
-    if (!this.sound.get('menuBGM')) {
-      this.bgm = this.sound.add('menuBGM', { loop: true, volume: 0.5 });
-      this.bgm.play();
+    let menuBGM = this.sound.get('menuBGM');
+
+    if (!menuBGM) {
+      menuBGM = this.sound.add('menuBGM', { loop: true, volume: 0.5 });
+      menuBGM.play();
+    } else if (!menuBGM.isPlaying) {
+      menuBGM.play();
     }
 
     this.add
-      .text(width / 2, 150, 'The Fine Game of Nil', {
+      .text(width / 2, 150, 'Bullet Heaven', {
         fontFamily: 'Arial',
         fontSize: '64px',
         color: '#ffffff'
