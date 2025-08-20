@@ -11,7 +11,7 @@ export default class Level extends Phaser.Scene {
       playerVelocity: 300,
       dashSpeed: 600,
       dashDuration: 200,
-      dashCooldown: 1000,
+      dashCooldown: 15000,
       spinSpeedIdle: 120,
       spinSpeedMax: 360,
       colorCycleSpeed: 90
@@ -96,7 +96,7 @@ export default class Level extends Phaser.Scene {
   // Per-boss intro timing (ms)
   const introTimingMap = {
     // Tighter intro
-    Boss1: { fadeIn: 500, hold: 500, fadeOut: 500 },
+    Boss1: { fadeIn: 500, hold: 750, fadeOut: 250 },
     // Longer, more dramatic intro
     Boss2: { fadeIn: 500, hold: 1000, fadeOut: 500 }
   };

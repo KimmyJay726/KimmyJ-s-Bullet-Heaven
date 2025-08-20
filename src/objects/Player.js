@@ -31,6 +31,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.dashDir       = new Phaser.Math.Vector2();
     this.isInvincible  = false;
     this.lastMoveDir   = new Phaser.Math.Vector2(1, 0);
+    this.dashReadyPlayed = false;
+
 
     // FX
     this.dashEmitter = null;
@@ -46,13 +48,20 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     // Death
     this.isDead = false;
+
+    //Costumes
+    this.currentCostume = 'Player'; // start with normal
+
+
+    
   }
 
   static preload(scene) {
     scene.load.image('Player', 'assets/player.svg');
+    scene.load.image('PlayerCooldown', 'assets/player_cooldown.png'); // <-- NEW costume
     scene.load.audio('gameOverMusic', 'assets/Halcyon.mp3');
     scene.load.audio('playerDeathSfx', 'assets/PlayerDeath.mp3');
-    // hitSfx should be preloaded in your audio loader elsewhere if used
+    scene.load.audio('dashReadySfx', 'assets/Coin.mp3'); // <-- NEW
 
     // Create a tiny particle texture for dash FX if not present
     if (!scene.textures.exists('dashParticle')) {
@@ -63,6 +72,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       g.destroy();
     }
   }
+
 
   update(time, delta) {
     if (this.isDead) {
@@ -119,11 +129,21 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
         vel.copy(inputVec).normalize().scale(this.velocity);
       }
       if (!this.canDash) {
-        this.cooldownTimer += delta;
-        if (this.cooldownTimer >= this.dashCooldown) {
-          this.canDash = true;
+      this.cooldownTimer += delta;
+      if (this.cooldownTimer >= this.dashCooldown) {
+        this.canDash = true;
+
+        // Play dash ready sound once
+        if (!this.dashReadyPlayed && this.scene.sound) {
+          this.scene.sound.play('dashReadySfx', { volume: 0.6 });
+          this.dashReadyPlayed = true;
         }
       }
+      } else {
+        // Reset flag when dash is used again
+        this.dashReadyPlayed = false;
+}
+
     }
 
     this.setVelocity(vel.x, vel.y);
@@ -142,22 +162,46 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.x = Phaser.Math.Clamp(this.x, 50 + halfW, gw - 50 - halfW);
     this.y = Phaser.Math.Clamp(this.y, 50 + halfH, gh - 50 - halfH);
 
-    // Visual states
-    if (this.isDashing) {
-      this.setTint(0xffff66);
-    } else if (!this.canDash) {
-      this.setTint(0x888888);
-      this.setScale(this.baseScale);
-      if (this.dashEmitter && this._dashFxOn) this.dashEmitter.stop();
-      this._dashFxOn = false;
-    } else {
-      const hue      = ((time * this.colorSpeed) / 1000 % 360) / 360;
-      const rgbColor = Phaser.Display.Color.HSVToRGB(hue, 0.1, 1);
-      this.setTint(rgbColor.color);
-      this.setScale(this.baseScale);
-      if (this.dashEmitter && this._dashFxOn) this.dashEmitter.stop();
-      this._dashFxOn = false;
-    }
+   // Visual states
+  // Visual states
+if (this.isDashing) {
+  this.setTexture('Player'); // always normal while dashing
+  this.setTint(0xffff66);
+} else if (!this.canDash) {
+  // Freeze color cycle
+  if (this.lastHue !== undefined) {
+    const rgbColor = Phaser.Display.Color.HSVToRGB(this.lastHue, 0.1, 1);
+    this.setTint(rgbColor.color);
+  }
+
+  // Switch to cooldown costume if not already
+  if (this.currentCostume !== 'PlayerCooldown') {
+    this.setTexture('PlayerCooldown');
+    this.currentCostume = 'PlayerCooldown';
+  }
+
+  this.setScale(this.baseScale);
+  if (this.dashEmitter && this._dashFxOn) this.dashEmitter.stop();
+  this._dashFxOn = false;
+} else {
+  // Dash ready — resume color cycle
+  const hue = ((time * this.colorSpeed) / 1000 % 360) / 360;
+  this.lastHue = hue;
+  const rgbColor = Phaser.Display.Color.HSVToRGB(hue, 0.1, 1);
+  this.setTint(rgbColor.color);
+
+  // Switch back to normal costume if needed
+  if (this.currentCostume !== 'Player') {
+    this.setTexture('Player');
+    this.currentCostume = 'Player';
+  }
+
+  this.setScale(this.baseScale);
+  if (this.dashEmitter && this._dashFxOn) this.dashEmitter.stop();
+  this._dashFxOn = false;
+}
+
+
 
     // Health regen
     if (this.hp < this.maxHp) {

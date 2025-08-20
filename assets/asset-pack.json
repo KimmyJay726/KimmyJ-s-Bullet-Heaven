@@ -19,6 +19,13 @@
                 "key": "bullet"
             },
             {
+                "url": [
+                    "assets/Coin.mp3"
+                ],
+                "type": "audio",
+                "key": "Coin"
+            },
+            {
                 "url": "assets/dino.png",
                 "key": "dino",
                 "type": "image"
