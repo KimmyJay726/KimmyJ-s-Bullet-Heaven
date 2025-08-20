@@ -51,10 +51,10 @@ export default class Boss2 extends Phaser.Physics.Arcade.Sprite {
   }
 
   static preload(scene) {
-    scene.load.image('Boss2', 'assets/Boss.png');
-    scene.load.image('Boss2Bullet', 'assets/boss2bullet.png');
-    scene.load.image('Boss2Special', 'assets/boss2special.png');
-    scene.load.audio('boss2DeathSfx', 'assets/Boss2Death.mp3');
+    scene.load.image('Boss2', 'assets/Trinity.svg'); 
+    scene.load.image('Boss2Bullet', 'assets/boss2bullet.png'); //
+    scene.load.image('Boss2Special', 'assets/boss2special.png'); //
+    scene.load.audio('boss2DeathSfx', 'assets/Boss2Death.mp3'); //
   }
 
   trackTimer(evt) {

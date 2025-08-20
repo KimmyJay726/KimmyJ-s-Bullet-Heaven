@@ -33,10 +33,10 @@ export default class LoadingScene extends Phaser.Scene {
 
     // Boss-specific assets — load images & audio together
     if (this.bossType === 'Boss2') {
-      this.load.atlas('boss2Sprites', 'assets/boss2.png', 'assets/boss2.json');
-      this.load.audio('boss2Music', 'assets/Boss2Theme.mp3');
+      //this.load.atlas('boss2Sprites', 'assets/boss2.png', 'assets/Trinity.json');
+      this.load.audio('boss2Music', 'assets/TrinityBGM.mp3');
     } else {
-      this.load.atlas('boss1Sprites', 'assets/boss1.png', 'assets/boss1.json');
+      //this.load.atlas('boss1Sprites', 'assets/boss1.png', 'assets/boss1.json');
       this.load.audio('boss1Music', 'assets/03-IMAGE-MATERIAL-2.mp3');
     }
 
