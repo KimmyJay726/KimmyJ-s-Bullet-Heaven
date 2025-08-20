@@ -87,51 +87,69 @@ export default class Level extends Phaser.Scene {
   }
 
   showBossIntro(bossType, onComplete) {
-    const bossNameMap = {
-      Boss1: 'ARCHANGEL INBOUND',
-      Boss2: 'CRASH INBOUND (WIP)'
-    };
-    const label = bossNameMap[bossType] || 'UNKNOWN FOE';
+  const bossNameMap = {
+    Boss1: 'ARCHANGEL APPROACHING',
+    Boss2: 'CRASH INBOUND (WIP)'
+  };
+  const label = bossNameMap[bossType] || 'UNKNOWN FOE';
 
-    // Dark overlay
-    const overlay = this.add
-      .rectangle(
-        this.scale.width / 2,
-        this.scale.height / 2,
-        this.scale.width,
-        this.scale.height,
-        0x000000,
-        0.75
-      )
-      .setDepth(10)
-      .setAlpha(0);
+  // Per-boss intro timing (ms)
+  const introTimingMap = {
+    // Tighter intro
+    Boss1: { fadeIn: 500, hold: 500, fadeOut: 500 },
+    // Longer, more dramatic intro
+    Boss2: { fadeIn: 500, hold: 1000, fadeOut: 500 }
+  };
+  const { fadeIn, hold, fadeOut } = introTimingMap[bossType] || { fadeIn: 500, hold: 1000, fadeOut: 500 };
 
-    // Boss name text — upper middle
-    const text = this.add
-      .text(this.scale.width / 2, this.scale.height / 4, label, {
-        fontFamily: 'Arial',
-        fontSize: '64px',
-        color: '#ff4444'
-      })
-      .setOrigin(0.5)
-      .setDepth(11)
-      .setAlpha(0);
+  // Dark overlay
+  const overlay = this.add
+    .rectangle(
+      this.scale.width / 2,
+      this.scale.height / 2,
+      this.scale.width,
+      this.scale.height,
+      0x000000,
+      0.75
+    )
+    .setDepth(10)
+    .setAlpha(0);
 
-    // Fade in → hold → fade out
-    this.tweens.add({
-      targets: [overlay, text],
-      alpha: 1,
-      duration: 500,
-      ease: 'Power2',
-      yoyo: true,
-      hold: 1000,
-      onComplete: () => {
-        overlay.destroy();
-        text.destroy();
-        if (onComplete) onComplete();
-      }
-    });
-  }
+  // Boss name text — upper middle
+  const text = this.add
+    .text(this.scale.width / 2, this.scale.height / 4, label, {
+      fontFamily: 'Arial',
+      fontSize: '64px',
+      color: '#ff4444'
+    })
+    .setOrigin(0.5)
+    .setDepth(11)
+    .setAlpha(0);
+
+  // Fade in → hold → fade out (custom per boss)
+  this.tweens.add({
+    targets: [overlay, text],
+    alpha: 1,
+    duration: fadeIn,
+    ease: 'Power2',
+    onComplete: () => {
+      this.time.delayedCall(hold, () => {
+        this.tweens.add({
+          targets: [overlay, text],
+          alpha: 0,
+          duration: fadeOut,
+          ease: 'Power2',
+          onComplete: () => {
+            overlay.destroy();
+            text.destroy();
+            if (onComplete) onComplete();
+          }
+        });
+      });
+    }
+  });
+}
+
 
   spawnBoss(type) {
     if (type === 'Boss2') {
