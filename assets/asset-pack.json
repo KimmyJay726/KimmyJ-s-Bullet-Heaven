@@ -26,6 +26,11 @@
                 "key": "Coin"
             },
             {
+                "url": "assets/crossbullet.svg",
+                "type": "image",
+                "key": "crossbullet"
+            },
+            {
                 "url": "assets/dino.png",
                 "key": "dino",
                 "type": "image"
@@ -75,6 +80,11 @@
                 "url": "assets/starshard.svg",
                 "type": "image",
                 "key": "starshard"
+            },
+            {
+                "url": "assets/swordbullet.svg",
+                "type": "image",
+                "key": "swordbullet"
             },
             {
                 "url": "assets/Trinity.svg",

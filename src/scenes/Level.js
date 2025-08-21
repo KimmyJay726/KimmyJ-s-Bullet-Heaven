@@ -89,7 +89,7 @@ export default class Level extends Phaser.Scene {
   showBossIntro(bossType, onComplete) {
   const bossNameMap = {
     Boss1: 'ARCHANGEL APPROACHING',
-    Boss2: 'CRASH INBOUND (WIP)'
+    Boss2: 'PRINCIPALITY APPROACHING'
   };
   const label = bossNameMap[bossType] || 'UNKNOWN FOE';
 
