@@ -27,8 +27,8 @@ export default class Boss2 extends Phaser.Physics.Arcade.Sprite {
       speedNormal: 350,
       delayIntro: 600,
       delayNormal: 285.7,
-      hitboxWidthFactor: 0.5,
-      hitboxHeightFactor: 1.0
+      hitboxWidthFactor: 0.7,
+      hitboxHeightFactor: 1.5
     };
 
     this.states = [
