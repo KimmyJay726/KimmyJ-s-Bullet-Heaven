@@ -32,7 +32,7 @@ export default class Boss2 extends Phaser.Physics.Arcade.Sprite {
     };
 
     this.states = [
-      { key: 'INTRO',   duration: 34500, enter: this.enterIntro },
+      { key: 'INTRO',   duration: 31500, enter: this.enterIntro },
       { key: 'PHASE1',  duration: 10000, enter: this.enterPhase1 },
       { key: 'PHASE2',  duration: 12000, enter: this.enterPhase2 },
       { key: 'PHASE3',  duration: 8000,  enter: this.enterPhase3 },
@@ -128,14 +128,43 @@ export default class Boss2 extends Phaser.Physics.Arcade.Sprite {
     this.updateSideBulletSettings(true);
   }
 
-  enterPhase1() {
-    this.setVisible(true);
-    this.body.enable = true;
-    this.setVelocity(0, 0);
-    this.bossBullets.clear(true, true);
+enterPhase1() {
+  this.setVisible(true);
+  this.body.enable = true;
+  this.setVelocity(0, 0);
+  this.bossBullets.clear(true, true);
 
-    this.updateSideBulletSettings(false);
+  this.updateSideBulletSettings(false);
+
+  // Redirect side bullets toward the player and rotate them
+  const player = this.scene.player;
+  if (player && player.active) {
+    const px = player.x;
+    const py = player.y;
+
+    this.sideBullets.getChildren().forEach(bullet => {
+      if (!bullet.active) return;
+
+      const dx = px - bullet.x;
+      const dy = py - bullet.y;
+      const magnitude = Math.sqrt(dx * dx + dy * dy);
+
+      if (magnitude > 0) {
+        const speed = this.SIDE_BULLET.speedNormal;
+        const vx = (dx / magnitude) * speed;
+        const vy = (dy / magnitude) * speed;
+
+        bullet.setVelocity(vx, vy);
+
+        // Rotate bullet to face movement direction
+        const angleDeg = Phaser.Math.RadToDeg(Math.atan2(vy, vx));
+        bullet.setAngle(angleDeg);
+      }
+    });
   }
+}
+
+
 
   enterPhase2() {
     this.setAngularVelocity(this.spinSpeed);
@@ -147,28 +176,36 @@ export default class Boss2 extends Phaser.Physics.Arcade.Sprite {
     this.updateSideBulletSettings(false);
   }
 
-  spawnSideBullets() {
-    if (this.isPaused || this.isDead) return;
-    const { width } = this.scene.scale;
-    const isIntro = this.states[this.currentState]?.key === 'INTRO';
-    const bulletSpeed = isIntro ? this.SIDE_BULLET.speedIntro : this.SIDE_BULLET.speedNormal;
+ spawnSideBullets() {
+  if (this.isPaused || this.isDead) return;
+  const { width, height } = this.scene.scale;
+  const isIntro = this.states[this.currentState]?.key === 'INTRO';
+  const bulletSpeed = isIntro ? this.SIDE_BULLET.speedIntro : this.SIDE_BULLET.speedNormal;
 
-    const createBullet = (x, flipRight) => {
-      const b = this.sideBullets.create(x, 0);
-      b.setScale(0.25).setAngle(90);
-      b.body.setSize(
-        b.width * this.SIDE_BULLET.hitboxWidthFactor,
-        b.height * this.SIDE_BULLET.hitboxHeightFactor,
-        true
-      );
-      const offsetX = b.body.width / 2;
-      b.x = flipRight ? width - offsetX : offsetX;
-      b.setVelocityY(bulletSpeed);
+  const createBullet = (x, flipRight) => {
+    const b = this.sideBullets.create(x, 0);
+    b.setScale(0.25).setAngle(90);
+    b.body.setSize(
+      b.width * this.SIDE_BULLET.hitboxWidthFactor,
+      b.height * this.SIDE_BULLET.hitboxHeightFactor,
+      true
+    );
+    const offsetX = b.body.width / 2;
+    b.x = flipRight ? width - offsetX : offsetX;
+    b.setVelocityY(bulletSpeed);
+
+    // Instead of worldbounds, check position in update
+    b.update = () => {
+      if (b.y - b.height / 2 > height) {
+        b.destroy();
+      }
     };
+  };
 
-    createBullet(0, false);
-    createBullet(width, true);
-  }
+  createBullet(0, false);
+  createBullet(width, true);
+}
+
 
   takeDamage(amount = 1) {
     if (this.isDead) return;
@@ -201,4 +238,12 @@ export default class Boss2 extends Phaser.Physics.Arcade.Sprite {
     for (const t of this.trackedTimers) if (t) t.remove(false);
     this.trackedTimers.clear();
   }
+
+  update() {
+  // Let each bullet run its own update check
+  this.sideBullets.getChildren().forEach(bullet => {
+    if (bullet.update) bullet.update();
+  });
+  }
+
 }
