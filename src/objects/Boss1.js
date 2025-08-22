@@ -301,7 +301,7 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
 
     enterPhase2() {
         this.stateName = 'PHASE2';
-        this.shootEvent.paused = false;
+        this.shootEvent.paused = true;
         this.shootEvent.callback = this.shootFan;
         this.spinSpeed = -180;
 
@@ -373,9 +373,9 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
         spike.body.setSize(bodyWidth, bodyHeight);
 
         if (side === 'top') {
-            spike.body.setOffset(0, bodyHeight);
+            spike.body.setOffset(0, bodyHeight - 25);
         } else if (side === 'bottom') {
-            spike.body.setOffset(0, -bodyHeight);
+            spike.body.setOffset(0, -bodyHeight + 25);
         } else {
             spike.body.setOffset(0, 0);
         }
@@ -575,7 +575,7 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
 
     enterPhase6() {
         this.stateName = 'PHASE6';
-        this.shootEvent.paused = false;
+        this.shootEvent.paused = true;
         this.shootEvent.callback = this.shootFan;
         this.shootEvent.delay = 1800;
         this.spinSpeed = -90;
