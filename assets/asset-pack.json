@@ -77,6 +77,16 @@
                 "key": "Star"
             },
             {
+                "url": "assets/Star2.png",
+                "type": "image",
+                "key": "Star2"
+            },
+            {
+                "url": "assets/Star3.png",
+                "type": "image",
+                "key": "Star3"
+            },
+            {
                 "url": "assets/starshard.svg",
                 "type": "image",
                 "key": "starshard"

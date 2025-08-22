@@ -1,222 +1,233 @@
 export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
-  constructor(scene, x, y, texture = 'Boss1') {
-    super(scene, x, y, texture);
+    constructor(scene, x, y, texture = 'Boss1') {
+        super(scene, x, y, texture);
 
-    scene.add.existing(this);
-    scene.physics.add.existing(this);
+        scene.add.existing(this);
+        scene.physics.add.existing(this);
 
-    // Pause tracking
-    this.isPaused = false;
-    this.trackedTimers = new Set();
-    this.stateTimer = null;
-    this.stateStartTime = 0;
-    this.stateDuration = 0;
-    this.remainingStateTime = 0;
-    this.nextStateIndex = 0;
-    this._savedVelocity = new Phaser.Math.Vector2();
-    this._savedAngular = 0;
+        this.isPaused = false;
+        this.trackedTimers = new Set();
+        this.stateTimer = null;
+        this.stateStartTime = 0;
+        this.stateDuration = 0;
+        this.remainingStateTime = 0;
+        this.nextStateIndex = 0;
+        this._savedVelocity = new Phaser.Math.Vector2();
+        this._savedAngular = 0;
+        this.phase8Passes = 0;
+        this.phase9Completed = false; // New flag to track Phase 9 completion
 
-    // Sync with scene pause/resume (including overlay + tab blur)
-    scene.events.on('pause', this.onScenePause, this);
-    scene.events.on('resume', this.onSceneResume, this);
+        scene.events.on('pause', this.onScenePause, this);
+        scene.events.on('resume', this.onSceneResume, this);
 
-    // Basic setup
-    this.setOrigin(0.5).setScale(0.125);
-    this.speed = 100;
-    this.spinSpeed = 90;
+        this.setOrigin(0.5).setScale(0.125);
+        this.speed = 100;
+        this.spinSpeed = 90;
 
-    // Bullets
-    this.bossBullets  = scene.physics.add.group();
-    this.wallBullets  = scene.physics.add.group({ immovable: true, allowGravity: false });
-    this.starBullets  = scene.physics.add.group({ classType: Phaser.Physics.Arcade.Image, defaultKey: 'StarBullet' });
-    this.angelBullets = scene.physics.add.group({ classType: Phaser.Physics.Arcade.Image, defaultKey: 'AngelBullet' });
+        this.bossBullets = scene.physics.add.group();
+        this.wallBullets = scene.physics.add.group({
+            immovable: true,
+            allowGravity: false
+        });
+        this.starBullets = scene.physics.add.group({
+            classType: Phaser.Physics.Arcade.Image,
+            defaultKey: 'StarBullet'
+        });
+        this.angelBullets = scene.physics.add.group({
+            classType: Phaser.Physics.Arcade.Image,
+            defaultKey: 'AngelBullet'
+        });
 
-    // States
-    this.states = [
-      { key: 'START',  duration:  4000, enter: this.enterStart },
-      { key: 'PHASE1', duration: 43600, enter: this.enterPhase1 },
-      { key: 'PHASE2', duration:  7800, enter: this.enterPhase2, exit: this.exitPhase2 },
-      { key: 'PHASE3', duration: 14600, enter: this.enterPhase3, exit: this.exitPhase3 },
-      { key: 'PHASE4', duration: 15600, enter: this.enterPhase4, exit: this.exitPhase4 },
-      { key: 'PHASE5', duration: 20000, enter: this.enterPhase5, exit: this.exitPhase5 },
-      { key: 'PHASE6', duration:  7000, enter: this.enterPhase6, exit: this.exitPhase6 },
-      { key: 'PHASE7', duration:  6100, enter: this.enterPhase7, exit: this.exitPhase7 },
-      { key: 'PHASE8', duration: 20000, enter: this.enterPhase8, exit: this.exitPhase8 },
-      { key: 'PHASE9', duration: 20000, enter: this.enterPhase9, exit: this.exitPhase9 }
-    ];
+        this.states = [
+            { key: 'START', duration: 4000, enter: this.enterStart, exit: this.exitStart },
+            { key: 'PHASE1', duration: 43600, enter: this.enterPhase1, exit: this.exitPhase1 },
+            { key: 'PHASE2', duration: 7800, enter: this.enterPhase2, exit: this.exitPhase2 },
+            { key: 'PHASE3', duration: 14600, enter: this.enterPhase3, exit: this.exitPhase3 },
+            { key: 'PHASE4', duration: 15600, enter: this.enterPhase4, exit: this.exitPhase4 },
+            { key: 'PHASE5', duration: 20000, enter: this.enterPhase5, exit: this.exitPhase5 },
+            { key: 'PHASE6', duration: 7000, enter: this.enterPhase6, exit: this.exitPhase6 },
+            { key: 'PHASE7', duration: 6100, enter: this.enterPhase7, exit: this.exitPhase7 },
+            { key: 'PHASE8', duration: 20000, enter: this.enterPhase8, exit: this.exitPhase8 },
+            { key: 'PHASE9', duration: 20000, enter: this.enterPhase9, exit: this.exitPhase9 },
+            { key: 'FINAL', duration: 60000, enter: this.enterFinal, exit: this.exitFinal },
+        ];
 
-    // Shoot event
-    this.shootEvent = this.trackTimer(scene.time.addEvent({
-      delay: 1800,
-      callback: this.shootFan,
-      callbackScope: this,
-      loop: true
-    }));
+        // The core fan shot timer, initially paused
+        this.shootEvent = this.trackTimer(scene.time.addEvent({
+            delay: 1800,
+            callback: this.shootFan,
+            callbackScope: this,
+            loop: true,
+            paused: true
+        }));
 
-    // Start
-    this.scheduleState(0);
-
-    // Cleanup on destroy to avoid stale listeners firing after a restart
-    this.once('destroy', this._cleanup, this);
-  }
-
-  static preload(scene) {
-    scene.load.image('Boss1', 'assets/Star.png');
-    scene.load.image('Bullet', 'assets/bossbullet.png');
-    scene.load.image('WallBullet', 'assets/wallbullet.svg');
-    scene.load.image('StarBullet', 'assets/starshard.svg');
-    scene.load.image('AngelBullet', 'assets/angelbullet.svg');
-  }
-
-  trackTimer(evt) {
-    if (evt) this.trackedTimers.add(evt);
-    return evt;
-  }
-
-  scheduleState(i) {
-    if (!Number.isInteger(i) || !this.states[i]) return this.scheduleState(4);
-    if (this.stateTimer) this.stateTimer.remove(false);
-
-    const { key, duration, enter } = this.states[i];
-    this.currentState = i;
-    this.stateName = key;
-
-    // Ensure we keep the Boss1 context and that enter exists
-    if (typeof enter === 'function') enter.call(this, key);
-
-    const rawNext = (key === 'PHASE9') ? this.phase3Index : i + 1;
-    this.nextStateIndex = Phaser.Math.Wrap(rawNext, 0, this.states.length);
-
-    // Guard scene.time access
-    const now = (this.scene && this.scene.time) ? this.scene.time.now : 0;
-    this.stateStartTime = now;
-    this.stateDuration = duration;
-    this.remainingStateTime = duration;
-
-    if (this.scene && this.scene.time) {
-      this.stateTimer = this.scene.time.addEvent({
-        delay: duration,
-        callback: () => this.scheduleState(this.nextStateIndex)
-      });
-      this.trackTimer(this.stateTimer);
-    }
-  }
-
-pauseBossFight() {
-  if (this.isPaused) return;
-  this.isPaused = true;
-
-  if (this.stateTimer) {
-    const now = (this.scene && this.scene.time) ? this.scene.time.now : this.stateStartTime;
-    const elapsed = now - this.stateStartTime;
-    this.remainingStateTime = Math.max(0, this.stateDuration - elapsed);
-    this.stateTimer.remove(false);
-    this.stateTimer = null;
-  }
-
-  if (this.shootEvent) this.shootEvent.paused = true;
-
-  // Always pause every tracked timer
-  for (const t of this.trackedTimers) {
-    if (t) t.paused = true;
-  }
-
-  if (this.body) {
-    this._savedVelocity.copy(this.body.velocity);
-    this._savedAngular = this.body.angularVelocity || 0;
-    this.body.setVelocity(0, 0);
-    if (this.setAngularVelocity) this.setAngularVelocity(0);
-    this.body.moves = false;
-  }
-}
-
-resumeBossFight() {
-  if (!this.isPaused) return;
-  this.isPaused = false;
-
-  if (this.remainingStateTime > 0 && this.scene && this.scene.time) {
-    this.stateStartTime = this.scene.time.now;
-    const delay = this.remainingStateTime;
-    this.remainingStateTime = 0;
-    this.stateTimer = this.scene.time.addEvent({
-      delay,
-      callback: () => this.scheduleState(this.nextStateIndex)
-    });
-    this.trackTimer(this.stateTimer);
-  }
-
-  if (this.shootEvent) this.shootEvent.paused = false;
-
-  // Always resume every tracked timer
-  for (const t of this.trackedTimers) {
-    if (t) t.paused = false;
-  }
-
-  if (this.body) {
-    this.body.moves = true;
-    this.body.setVelocity(this._savedVelocity.x, this._savedVelocity.y);
-    if (this.setAngularVelocity) this.setAngularVelocity(this._savedAngular);
-  }
-}
-
-  onScenePause() {
-    // Ignore scene pause after this object is destroyed
-    if (!this.active) return;
-    this.pauseBossFight();
-  }
-
-  onSceneResume() {
-    if (!this.active) return;
-    this.resumeBossFight();
-  }
-
-  // Optional: if you have an update loop, keep it guarded
-  preUpdate(time, delta) {
-    super.preUpdate(time, delta);
-    if (this.isPaused || !this.body) return;
-    // ...your per-frame logic if needed
-  }
-
-  // Call this before destroy to prevent lingering listeners/timers causing crashes on restarts
-  _cleanup() {
-    // Unsubscribe scene events
-    if (this.scene && this.scene.events) {
-      this.scene.events.off('pause', this.onScenePause, this);
-      this.scene.events.off('resume', this.onSceneResume, this);
+        this.scheduleState(0);
+        this.once('destroy', this._cleanup, this);
     }
 
-    // Stop timers
-    if (this.stateTimer) {
-      this.stateTimer.remove(false);
-      this.stateTimer = null;
+    static preload(scene) {
+        scene.load.image('Boss1', 'assets/Star.png');
+        scene.load.image('BossAngry', 'assets/Star2.png');
+        scene.load.image('BossHappy', 'assets/Star3.png');
+        scene.load.image('Bullet', 'assets/bossbullet.png');
+        scene.load.image('WallBullet', 'assets/wallbullet.svg');
+        scene.load.image('StarBullet', 'assets/starshard.svg');
+        scene.load.image('AngelBullet', 'assets/angelbullet.svg');
     }
-    if (this.shootEvent) {
-      this.shootEvent.remove(false);
-      this.shootEvent = null;
+
+    trackTimer(evt) {
+        if (evt) this.trackedTimers.add(evt);
+        return evt;
     }
-    for (const t of this.trackedTimers) {
-      if (t) t.remove(false);
+
+    scheduleState(i) {
+        const currentStateDef = this.states[this.currentState];
+        if (currentStateDef && typeof currentStateDef.exit === 'function') {
+            currentStateDef.exit.call(this);
+        }
+
+        if (!Number.isInteger(i) || !this.states[i]) {
+            console.warn(`Invalid state index ${i}. Falling back to state 0.`);
+            i = 0;
+        }
+
+        if (this.stateTimer) {
+            this.stateTimer.remove(false);
+            this.stateTimer = null;
+        }
+
+        const {
+            key,
+            duration,
+            enter
+        } = this.states[i];
+        this.currentState = i;
+        this.stateName = key;
+
+        if (typeof enter === 'function') enter.call(this, key);
+
+        this.nextStateIndex = (i + 1) % this.states.length;
+        if (key === 'PHASE9') {
+            this.nextStateIndex = 4;
+        }
+        
+        if (key === 'PHASE8') {
+            this.phase8Passes++;
+            if (this.phase8Passes >= 2) {
+                this.nextStateIndex = this.states.findIndex(state => state.key === 'FINAL');
+            } else {
+                this.nextStateIndex = 9;
+            }
+        }
+
+        const now = (this.scene && this.scene.time) ? this.scene.time.now : 0;
+        this.stateStartTime = now;
+        this.stateDuration = duration;
+        this.remainingStateTime = duration;
+
+        if (this.scene && this.scene.time) {
+            this.stateTimer = this.scene.time.addEvent({
+                delay: duration,
+                callback: () => this.scheduleState(this.nextStateIndex)
+            });
+            this.trackTimer(this.stateTimer);
+        }
     }
-    this.trackedTimers.clear();
 
-    // Clear bullet groups safely
-    const groups = [this.bossBullets, this.wallBullets, this.starBullets, this.angelBullets];
-    for (const g of groups) {
-      if (g && g.clear) g.clear(true, true);
-      if (g && g.destroy) g.destroy();
+    pauseBossFight() {
+        if (this.isPaused) return;
+        this.isPaused = true;
+
+        if (this.stateTimer) {
+            const now = (this.scene && this.scene.time) ? this.scene.time.now : this.stateStartTime;
+            const elapsed = now - this.stateStartTime;
+            this.remainingStateTime = Math.max(0, this.stateDuration - elapsed);
+            this.stateTimer.remove(false);
+            this.stateTimer = null;
+        }
+
+        for (const t of this.trackedTimers) {
+            if (t) t.paused = true;
+        }
+
+        if (this.body) {
+            this._savedVelocity.copy(this.body.velocity);
+            this._savedAngular = this.body.angularVelocity || 0;
+            this.body.setVelocity(0, 0);
+            if (this.setAngularVelocity) this.setAngularVelocity(0);
+            this.body.moves = false;
+        }
     }
-    this.bossBullets = this.wallBullets = this.starBullets = this.angelBullets = null;
-  }
 
-  // If you call destroy externally, keep cleanup order safe
-  destroy(fromScene) {
-    // Run cleanup before the body is removed by super.destroy
-    this._cleanup();
-    super.destroy(fromScene);
-  }
+    resumeBossFight() {
+        if (!this.isPaused) return;
+        this.isPaused = false;
 
-  
+        if (this.remainingStateTime > 0 && this.scene && this.scene.time) {
+            this.stateStartTime = this.scene.time.now;
+            const delay = this.remainingStateTime;
+            this.remainingStateTime = 0;
+            this.stateTimer = this.scene.time.addEvent({
+                delay,
+                callback: () => this.scheduleState(this.nextStateIndex)
+            });
+            this.trackTimer(this.stateTimer);
+        }
 
+        for (const t of this.trackedTimers) {
+            if (t) t.paused = false;
+        }
+
+        if (this.body) {
+            this.body.moves = true;
+            this.body.setVelocity(this._savedVelocity.x, this._savedVelocity.y);
+            if (this.setAngularVelocity) this.setAngularVelocity(this._savedAngular);
+        }
+    }
+
+    onScenePause() {
+        if (!this.active) return;
+        this.pauseBossFight();
+    }
+
+    onSceneResume() {
+        if (!this.active) return;
+        this.resumeBossFight();
+    }
+
+    preUpdate(time, delta) {
+        super.preUpdate(time, delta);
+        if (this.isPaused || !this.body) return;
+
+        if (this.stateName === 'FINAL' && this.player && this.player.active) {
+            this.scene.physics.moveToObject(this, this.player, this.speed * 1.5);
+        }
+    }
+
+    _cleanup() {
+        if (this.scene && this.scene.events) {
+            this.scene.events.off('pause', this.onScenePause, this);
+            this.scene.events.off('resume', this.onSceneResume, this);
+        }
+        for (const t of this.trackedTimers) {
+            if (t) t.remove(false);
+        }
+        this.trackedTimers.clear();
+        this.stateTimer = null;
+        this.shootEvent = null;
+
+        const groups = [this.bossBullets, this.wallBullets, this.starBullets, this.angelBullets];
+        for (const g of groups) {
+            if (g && g.clear) g.clear(true, true);
+            if (g && g.destroy) g.destroy();
+        }
+        this.bossBullets = this.wallBullets = this.starBullets = this.angelBullets = null;
+    }
+
+    destroy(fromScene) {
+        this._cleanup();
+        super.destroy(fromScene);
+    }
 
     // -------------------------
     // State entry callbacks
@@ -225,141 +236,100 @@ resumeBossFight() {
     enterStart() {
         this.stateName = 'START';
         this.body.setCollideWorldBounds(false);
-        this.shootEvent.paused = true;
 
-        // 1) Fire off the movement
         this.scene.physics.moveTo(this, 640, 100, this.speed);
-
-        // 2) Compute how long it will take to get there
         const distance = Phaser.Math.Distance.Between(this.x, this.y, 640, 100);
-        const travelTime = (distance / this.speed) * 1000; // in ms
+        const travelTime = (distance / this.speed) * 1000;
 
-        // 3) Schedule a stop exactly when it arrives
-        this.scene.time.delayedCall(travelTime, () => {
+        this.trackTimer(this.scene.time.delayedCall(travelTime, () => {
             this.body.setVelocity(0, 0);
-            this.setPosition(640, 100); // snap to exact target
-
-        });
+            this.setPosition(640, 100);
+        }));
     }
 
-    // inside your state class…
-
+    exitStart() {}
 
     enterPhase1() {
-
         this.stateName = 'PHASE1';
         this.shootEvent.paused = false;
-
-
-        // assume you store your player on the scene as `this.scene.player`
         this.player = this.scene.player;
-
-
+        this.shootEvent.callback = this.shootFan;
+        this.shootEvent.delay = 1800;
     }
 
-shootFan() {
-    const fanAngle = 60;
-    const bulletCnt = 5;
-    const speed = 400;
-    const errorMargin = 5;
+    // The single fan bullet shot
+    shootFan() {
+        const fanAngle = 60;
+        const bulletCnt = 5;
+        const speed = 400;
+        const errorMargin = 5;
 
-    // Make sure player exists before calculating angle
-    if (!this.player || typeof this.player.x !== 'number' || typeof this.player.y !== 'number') {
-        return; // no target to shoot at
-    }
-
-    const baseDeg = Phaser.Math.RadToDeg(
-        Phaser.Math.Angle.Between(this.x, this.y, this.player.x, this.player.y)
-    );
-
-    const step = fanAngle / (bulletCnt - 1);
-
-    // Make sure starBullets group exists and has a get() method
-    if (!this.starBullets || typeof this.starBullets.get !== 'function') {
-        console.warn('starBullets group is missing or invalid');
-        return;
-    }
-
-    for (let i = 0; i < bulletCnt; i++) {
-        const idealDeg = baseDeg - fanAngle / 2 + step * i;
-        const finalDeg = idealDeg + Phaser.Math.FloatBetween(-errorMargin, errorMargin);
-
-        // grab one from the starBullets pool
-        const b = this.starBullets.get(this.x, this.y);
-        if (!b) {
-            // pool exhausted
-            continue;
+        if (!this.player || typeof this.player.x !== 'number' || typeof this.player.y !== 'number') {
+            return;
         }
 
-        b
-            .setActive(true)
-            .setVisible(true)
-            .setScale(0.05)
-            .setAngle(finalDeg);
+        const baseDeg = Phaser.Math.RadToDeg(
+            Phaser.Math.Angle.Between(this.x, this.y, this.player.x, this.player.y)
+        );
 
-        if (b.body) {
-            b.body.reset(this.x, this.y);
+        const step = fanAngle / (bulletCnt - 1);
 
-            const r = b.displayWidth / 2;
-            b.body.setCircle(
-                r,
-                (b.width - b.displayWidth) / 2,
-                (b.height - b.displayHeight) / 2
-            );
+        if (!this.starBullets || typeof this.starBullets.get !== 'function') {
+            console.warn('starBullets group is missing or invalid');
+            return;
+        }
 
-            this.scene.physics.velocityFromAngle(finalDeg, speed, b.body.velocity);
+        for (let i = 0; i < bulletCnt; i++) {
+            const idealDeg = baseDeg - fanAngle / 2 + step * i;
+            const finalDeg = idealDeg + Phaser.Math.FloatBetween(-errorMargin, errorMargin);
+            const b = this.starBullets.get(this.x, this.y);
+            if (!b) continue;
+
+            b.setActive(true).setVisible(true).setScale(0.05).setAngle(finalDeg);
+            if (b.body) {
+                b.body.reset(this.x, this.y);
+                const r = b.displayWidth / 2;
+                b.body.setCircle(r, (b.width - b.displayWidth) / 2, (b.height - b.displayHeight) / 2);
+                this.scene.physics.velocityFromAngle(finalDeg, speed, b.body.velocity);
+            }
         }
     }
-}
-
-
-
-
 
     exitPhase1() {
-        // stop shooting when leaving PHASE1
-
-
+        this.shootEvent.paused = true;
     }
 
-    // inside your state class…
-
-    // inside src/gameobjects/Boss1.js
-
     enterPhase2() {
-
         this.stateName = 'PHASE2';
         this.shootEvent.paused = false;
-        this.spinSpeed = -180; 
+        this.shootEvent.callback = this.shootFan;
+        this.spinSpeed = -180;
 
         const {
             width,
             height
         } = this.scene.scale;
-        const spacing = 32; // px between spawns
-        const wallDelay = 1800; // ms between each wall side
-        const bulletInterval = 100; // ms between each shot
-        const spawnOffset = 10; // px offscreen
-        const speed = 200; // slide-in speed
+        const spacing = 32;
+        const wallDelay = 1800;
+        const bulletInterval = 100;
+        const spawnOffset = 10;
+        const speed = 200;
 
         const sides = ['top', 'right', 'bottom', 'left'];
         sides.forEach((side, sideIdx) => {
-            this.scene.time.delayedCall(wallDelay * sideIdx, () => {
-                // build X or Y positions along that wall
+            this.trackTimer(this.scene.time.delayedCall(wallDelay * sideIdx, () => {
                 const max = (side === 'top' || side === 'bottom') ? width : height;
                 const positions = [];
                 for (let i = 0; i <= max; i += spacing) {
                     positions.push(i);
                 }
 
-                // reverse order on bottom and left
                 if (side === 'bottom' || side === 'left') {
                     positions.reverse();
                 }
 
-                // fire them one at a time
                 positions.forEach((pos, i) => {
-                    this.scene.time.delayedCall(bulletInterval * i, () => {
+                    this.trackTimer(this.scene.time.delayedCall(bulletInterval * i, () => {
                         let x, y, angleDeg;
                         switch (side) {
                             case 'top':
@@ -383,199 +353,151 @@ shootFan() {
                                 angleDeg = 180;
                                 break;
                         }
-                        this._spawnWallBullet(x, y, angleDeg, speed, spawnOffset);
-                    });
+                        this._spawnWallBullet(x, y, angleDeg, speed, spawnOffset, side);
+                    }));
                 });
-            });
+            }));
         });
     }
-
 
     _spawnWallBullet(x, y, angleDeg, speed, offset, side) {
         const spike = this.wallBullets.get(x, y, 'WallBullet');
         if (!spike) return;
 
-        spike
-            .setActive(true)
-            .setVisible(true)
-            .setScale(1)
-            .setAngle(angleDeg);
-
-        // slide it in
+        spike.setActive(true).setVisible(true).setScale(1).setAngle(angleDeg);
         this.scene.physics.velocityFromAngle(angleDeg, speed, spike.body.velocity);
 
-        // — ADJUST HITBOX FOR ROOF & FLOOR —
         const bodyWidth = spike.displayWidth;
-        const bodyHeight = spike.displayHeight + 50;
+        const bodyHeight = spike.displayHeight;
 
-        // set body size to match sprite
         spike.body.setSize(bodyWidth, bodyHeight);
 
         if (side === 'top') {
-            // push the hitbox downward by its own height
             spike.body.setOffset(0, bodyHeight);
         } else if (side === 'bottom') {
-            // pull the hitbox upward so it hugs the bottom edge
             spike.body.setOffset(0, -bodyHeight);
+        } else {
+            spike.body.setOffset(0, 0);
         }
-        // for left/right walls you can leave offset at (0,0) or adjust X if needed
 
-        // once it’s crossed `offset` px, jam it on the edge
         const travelTime = (offset / speed) * 1000;
-        this.scene.time.delayedCall(travelTime, () => {
+        this.trackTimer(this.scene.time.delayedCall(travelTime, () => {
             spike.body.setVelocity(0);
             spike.body.immovable = true;
-        });
+        }));
     }
 
+    exitPhase2() {}
 
-
-
-    exitPhase2() {
-        /*
-          if (this.bullets) {
-            this.bullets.clear(true, true);
-          }
-          */
-  
-    }
-
-    // -------------------------
-    // PHASE3: Bullet Flurry
-    // -------------------------
     enterPhase3() {
         this.stateName = 'PHASE3';
         this.player = this.scene.player;
-        this.spinSpeed = 180; 
+        this.spinSpeed = 180;
+        this.shootEvent.paused = false;
+        this.shootEvent.callback = this.shootFan;
+        this.shootEvent.delay = 1800;
 
-        // fire a flurry: every 100ms, shoot one slightly off‐course bullet
-        const interval = 100; // ms between shots
-        const speed = 300; // bullet speed
-        const errorMargin = 45; // ± degrees random spread
+        // Boss does not bounce in this phase
+        this.body.setCollideWorldBounds(false).setBounce(0);
+        this.body.setVelocity(0, 0);
 
-        this.flurryEvent = this.scene.time.addEvent({
+        const interval = 100;
+        const speed = 300;
+        const errorMargin = 45;
+
+        this.flurryEvent = this.trackTimer(this.scene.time.addEvent({
             delay: interval,
             loop: true,
             callback: () => this.shootFlurryBullet(speed, errorMargin),
             callbackScope: this
-        });
+        }));
     }
 
     shootFlurryBullet(speed, errorMargin) {
-
-        if (this.stateName !== 'PHASE3') {
-            return;
-        }
-        // angle toward player + little random miss
-        const baseRad = Phaser.Math.Angle.Between(
-            this.x, this.y,
-            this.player.x, this.player.y
-        );
+        if (this.stateName !== 'PHASE3') return;
+        const baseRad = Phaser.Math.Angle.Between(this.x, this.y, this.player.x, this.player.y);
         const baseDeg = Phaser.Math.RadToDeg(baseRad);
         const errorDeg = Phaser.Math.FloatBetween(-errorMargin, errorMargin);
         const finalDeg = baseDeg + errorDeg;
-
         const b = this.bossBullets.get(this.x, this.y, 'Bullet');
         if (!b) return;
 
-        b
-            .setActive(true)
-            .setVisible(true)
-            .setScale(0.1)
-            .setAngle(finalDeg);
-
-        // tighten hit-circle around the sprite
+        b.setActive(true).setVisible(true).setScale(0.1).setAngle(finalDeg);
         const r = b.displayWidth / 2;
-        b.body.setCircle(r,
-            (b.width - b.displayWidth) / 2,
-            (b.height - b.displayHeight) / 2
-        );
-
-        // send it off
+        b.body.setCircle(r, (b.width - b.displayWidth) / 2, (b.height - b.displayHeight) / 2);
         this.scene.physics.velocityFromAngle(finalDeg, speed, b.body.velocity);
-
-        // auto-kill after 3s to avoid memory buildup
-        this.scene.time.delayedCall(3000, () => {
-            b.destroy();
-        });
+        this.trackTimer(this.scene.time.delayedCall(3000, () => {
+            if (b.active) b.destroy();
+        }));
     }
 
     exitPhase3() {
-
-
+        if (this.flurryEvent) {
+            this.flurryEvent.remove(false);
+            this.flurryEvent = null;
+        }
     }
 
-
-    // -------------------------
-    // PHASE4: random vertical streams
-    // -------------------------
     enterPhase4() {
         this.stateName = 'PHASE4';
-        this.spinSpeed = 120; 
-
+        this.spinSpeed = 120;
+        this.shootEvent.paused = false;
+        this.shootEvent.callback = this.shootFan;
+        this.shootEvent.delay = 1800;
+        
         const {
             width,
             height
         } = this.scene.scale;
-        const speed = 300; // upward bullet speed
-        const spawnRate = 150; // ms between each bullet
+        const speed = 300;
+        const spawnRate = 150;
 
-        // every `spawnRate` ms, spawn a bullet at a random x along the bottom
-        this.phase4Event = this.scene.time.addEvent({
+        // Conditional bouncing behavior
+        if (this.phase9Completed) {
+            this.body
+                .setCollideWorldBounds(true)
+                .setBounce(1);
+        } else {
+            this.body
+                .setCollideWorldBounds(false)
+                .setBounce(0);
+        }
 
+        this.phase4Event = this.trackTimer(this.scene.time.addEvent({
             delay: spawnRate,
             callback: () => {
-
-                if (this.stateName !== 'PHASE4') {
-                    return;
-                }
+                if (this.stateName !== 'PHASE4') return;
                 const xPos = Phaser.Math.Between(0, width);
-                const yPos = height + 10; // just off‐screen
-
-                const b = this.bossBullets.get(xPos, yPos, 'AngelBullet');
+                const yPos = height + 10;
+                const b = this.angelBullets.get(xPos, yPos, 'AngelBullet');
                 if (!b) return;
-
-                b
-                    .setActive(true)
-                    .setVisible(true)
-                    .setScale(0.125)
-                    .setAngle(90); // point sprite upward
-
-                // circle hitbox
+                b.setActive(true).setVisible(true).setScale(0.125).setAngle(90);
                 const r = b.displayWidth / 2;
                 b.body.setCircle(r, (b.width - b.displayWidth) / 2, (b.height - b.displayHeight) / 2);
-
-                // shoot straight up
                 b.body.setVelocity(0, -speed);
-
-                // optional: automatically cull when off‐screen
                 b.checkWorldBounds = true;
                 b.outOfBoundsKill = true;
             },
             callbackScope: this,
             loop: true
-        });
+        }));
     }
 
     exitPhase4() {
-        // stop spawning bullets
         if (this.phase4Event) {
             this.phase4Event.remove(false);
+            this.phase4Event = null;
         }
-
     }
-
-    // -----------------------
-    // PHASE5: Center + Edge-Bullets
-    // -----------------------
 
     enterPhase5() {
         this.stateName = 'PHASE5';
         this.player = this.scene.player;
-        this.shootEvent.paused = true; // optional: pause fan shot
-        this.spinSpeed = -90; 
+        this.shootEvent.paused = true;
+        this.spinSpeed = -90;
 
-        // move to center
+        this.body.setCollideWorldBounds(false).setBounce(0);
+
         const {
             width,
             height
@@ -583,40 +505,30 @@ shootFan() {
         const cx = width / 2;
         const cy = height / 2;
         this.scene.physics.moveTo(this, cx, cy, this.speed);
-
-        // compute travel time
         const dist = Phaser.Math.Distance.Between(this.x, this.y, cx, cy);
         const travelTime = (dist / this.speed) * 1000;
 
-        // once arrived, jam at center & start edge-spawns
-        this.scene.time.delayedCall(travelTime, () => {
-
-
+        this.trackTimer(this.scene.time.delayedCall(travelTime, () => {
             this.body.setVelocity(0);
             this.setPosition(cx, cy);
 
-            this.edgeBulletEvent = this.scene.time.addEvent({
-                delay: 75, // spawn every 0.5s
+            this.edgeBulletEvent = this.trackTimer(this.scene.time.addEvent({
+                delay: 75,
                 loop: true,
                 callback: this.spawnEdgeBullet,
                 callbackScope: this
-            });
-        });
+            }));
+        }));
     }
 
     spawnEdgeBullet() {
-
-        if (this.stateName !== 'PHASE5') {
-            return;
-        }
+        if (this.stateName !== 'PHASE5') return;
         const {
             width,
             height
         } = this.scene.scale;
         const cx = width / 2;
         const cy = height / 2;
-
-        // pick random edge
         const side = Phaser.Math.Between(0, 3);
         let x, y;
         switch (side) {
@@ -638,37 +550,23 @@ shootFan() {
                 break;
         }
 
-        // angle and get bullet
-        const angle = Phaser.Math.RadToDeg(
-            Phaser.Math.Angle.Between(x, y, cx, cy)
-        );
+        const angle = Phaser.Math.RadToDeg(Phaser.Math.Angle.Between(x, y, cx, cy));
         const b = this.bossBullets.get(x, y, 'Bullet');
         if (!b) return;
 
-        b
-            .setActive(true)
-            .setVisible(true)
-            .setScale(0.1)
-            .setAngle(angle);
+        b.setActive(true).setVisible(true).setScale(0.1).setAngle(angle);
         b.body.reset(x, y);
         this.scene.physics.velocityFromAngle(angle, 100, b.body.velocity);
-
-        // circle hitbox
         const r = b.displayWidth / 2;
         b.body.setCircle(r, (b.width - b.displayWidth) / 2, (b.height - b.displayHeight) / 2);
-
-        // compute travel time (ms) and schedule destroy
         const dist = Phaser.Math.Distance.Between(x, y, cx, cy);
         const timeMs = (dist / 100) * 1000;
-        this.scene.time.delayedCall(timeMs, () => {
-            if (b.active) {
-                b.destroy(); // or: this.bossBullets.killAndHide(b);
-            }
-        });
+        this.trackTimer(this.scene.time.delayedCall(timeMs, () => {
+            if (b.active) b.destroy();
+        }));
     }
 
     exitPhase5() {
-
         if (this.edgeBulletEvent) {
             this.edgeBulletEvent.remove(false);
             this.edgeBulletEvent = null;
@@ -677,10 +575,11 @@ shootFan() {
 
     enterPhase6() {
         this.stateName = 'PHASE6';
-        this.shootEvent.paused = true; // if you want all other shooting off
-        this.spinSpeed = -90; 
+        this.shootEvent.paused = false;
+        this.shootEvent.callback = this.shootFan;
+        this.shootEvent.delay = 1800;
+        this.spinSpeed = -90;
 
-        // compute center coords
         const {
             width,
             height
@@ -688,84 +587,63 @@ shootFan() {
         const cx = width / 2;
         const cy = height / 2;
 
-        // slide boss to center
         this.scene.physics.moveTo(this, cx, cy, this.speed);
-
-        // once he arrives, zero‐out velocity to stand still
         const dist = Phaser.Math.Distance.Between(this.x, this.y, cx, cy);
-        const travelTime = (dist / this.speed) * 1000; // ms
+        const travelTime = (dist / this.speed) * 1000;
 
-        this.scene.time.delayedCall(travelTime, () => {
+        this.trackTimer(this.scene.time.delayedCall(travelTime, () => {
             this.body.setVelocity(0, 0);
             this.setPosition(cx, cy);
-            // optional: trigger an idle animation or visual cue here
-        });
+        }));
     }
 
-    exitPhase6() {
-
-        // no timers to clear—boss just stays still
-    }
+    exitPhase6() {}
 
     enterPhase7() {
         this.stateName = 'PHASE7';
         this.body.setCollideWorldBounds(false);
-        this.shootEvent.paused = true;
-        this.spinSpeed = 90; 
+        this.shootEvent.paused = false;
+        this.shootEvent.callback = this.shootFan;
+        this.shootEvent.delay = 1800;
+        this.spinSpeed = 90;
 
-        // 1) Fire off the movement
         this.scene.physics.moveTo(this, 640, 100, this.speed);
-
-        // 2) Compute how long it will take to get there
         const distance = Phaser.Math.Distance.Between(this.x, this.y, 640, 100);
-        const travelTime = (distance / this.speed) * 1000; // in ms
+        const travelTime = (distance / this.speed) * 1000;
 
-        // 3) Schedule a stop exactly when it arrives
-        this.scene.time.delayedCall(travelTime, () => {
+        this.trackTimer(this.scene.time.delayedCall(travelTime, () => {
             this.body.setVelocity(0, 0);
-            this.setPosition(640, 100); // snap to exact target
-
-        });
+            this.setPosition(640, 100);
+        }));
     }
 
+    exitPhase7() {}
 
     enterPhase8() {
         this.stateName = 'PHASE8';
         this.player = this.scene.player;
-        this.shootEvent.paused = false; // Enable Fanshot
-        this.spinSpeed = 180; 
+        this.shootEvent.paused = false;
+        this.shootEvent.callback = this.shootFan;
+        this.shootEvent.delay = 1800;
+        this.spinSpeed = 180;
+        
+        // Always set bounce in this phase
+        this.body.setCollideWorldBounds(true).setBounce(1);
+        
+        // Start moving randomly at the beginning of the phase
+        this.body.setVelocity(Phaser.Math.Between(-150, 150), Phaser.Math.Between(-150, 150));
 
-        // enable wall bounce
-        this.body
-            .setCollideWorldBounds(true)
-            .setBounce(1);
-
-        // define a faster speed for Phase8 (e.g. double the base speed)
-        const phase8Speed = this.speed * 2;
-
-        // pick a random direction at that higher speed
-        const angleRad = Phaser.Math.FloatBetween(0, Math.PI * 2);
-        const vx = Math.cos(angleRad) * phase8Speed;
-        const vy = Math.sin(angleRad) * phase8Speed;
-        this.body.setVelocity(vx, vy);
-
-        // start the tight flurry (unchanged)
-        this.phase8Timer = this.scene.time.addEvent({
+        this.phase8Timer = this.trackTimer(this.scene.time.addEvent({
             delay: 120,
             loop: true,
             callback: () => this.shootPhase8Bullet(300, 20),
             callbackScope: this
-        });
+        }));
     }
 
-
-
     shootPhase8Bullet(speed, errorMargin) {
-        if (this.stateName !== 'PHASE8') {
-            return;
-        }
+        if (this.stateName !== 'PHASE8') return;
 
-        // aim + random spread
         const baseRad = Phaser.Math.Angle.Between(this.x, this.y, this.player.x, this.player.y);
         const baseDeg = Phaser.Math.RadToDeg(baseRad);
         const finalDeg = baseDeg + Phaser.Math.FloatBetween(-errorMargin, errorMargin);
@@ -773,96 +651,100 @@ shootFan() {
         const b = this.bossBullets.get(this.x, this.y, 'Bullet');
         if (!b) return;
 
-        b.setActive(true)
-            .setVisible(true)
-            .setScale(0.1)
-            .setAngle(finalDeg);
-
-        // tighten hit-circle
+        b.setActive(true).setVisible(true).setScale(0.1).setAngle(finalDeg);
         const r = b.displayWidth / 2;
-        b.body.setCircle(r,
-            (b.width - b.displayWidth) / 2,
-            (b.height - b.displayHeight) / 2
-        );
-
-        // fire out
+        b.body.setCircle(r, (b.width - b.displayWidth) / 2, (b.height - b.displayHeight) / 2);
         this.scene.physics.velocityFromAngle(finalDeg, speed, b.body.velocity);
-
-        // auto-kill in 3s
-        this.scene.time.delayedCall(3000, () => {
-            if (b.active) {
-                b.destroy();
-            }
-        });
+        this.trackTimer(this.scene.time.delayedCall(3000, () => {
+            if (b.active) b.destroy();
+        }));
     }
 
-
-
     exitPhase8() {
-        // stop shooting
         if (this.phase8Timer) {
             this.phase8Timer.remove(false);
             this.phase8Timer = null;
         }
-
-        // disable bounce
-        this.body
-            .setCollideWorldBounds(false)
-            .setBounce(0);
-
-        this.stateName = null;
+        // Retain bouncing behavior from this phase to the next.
+        this.body.setCollideWorldBounds(false).setBounce(0);
     }
-
 
     enterPhase9() {
-    this.stateName = 'PHASE9';
-    this.player    = this.scene.player;
+        this.stateName = 'PHASE9';
+        this.player = this.scene.player;
+        this.shootEvent.paused = false;
+        // Changes the fan bullet to fire in a double burst
+        this.shootEvent.callback = this.shootFanTwice;
+        this.shootEvent.delay = 1200;
+        this.spinSpeed = 180;
 
-    // Bounce off world bounds
-    this.body
-      .setCollideWorldBounds(true)
-      .setBounce(1);
+        this.setTintFill(0xffffff);
+        this.trackTimer(this.scene.time.delayedCall(100, () => {
+            this.clearTint();
+            this.setTexture('BossAngry');
+        }));
 
-    // Start chasing the player
-    this.scene.physics.moveToObject(this, this.player, this.speed);
-
-    // Schedule a fan of bullets every 1 second
-    this.phase9FanEvent = this.scene.time.addEvent({
-      delay:         900,
-      loop:          true,
-      callback:      this.shootFan,
-      callbackScope: this
-    });
-  }
-
-  exitPhase9() {
-    // Stop movement
-    this.body.setVelocity(0, 0);
-
-    // Remove the fan‐shot timer
-    if (this.phase9FanEvent) {
-      this.phase9FanEvent.remove(false);
-      this.phase9FanEvent = null;
+        this.body.setCollideWorldBounds(true).setBounce(1);
+        this.scene.physics.moveToObject(this, this.player, this.speed);
     }
-  }
+    
+    // A new method to fire the fan bullet twice
+    shootFanTwice() {
+        // First shot
+        this.shootFan();
+        // Odd interval for second shot
+        this.trackTimer(this.scene.time.delayedCall(Phaser.Math.Between(100, 300), () => {
+            this.shootFan();
+        }));
+    }
 
+    exitPhase9() {
+        // Retain velocity so the boss continues bouncing.
+        this.phase9Completed = true;
+    }
+    
+    // New FINAL phase entry callback
+    enterFinal() {
+        this.stateName = 'FINAL';
+        this.player = this.scene.player;
+        this.spinSpeed = 360;
+        
+        this.setTexture('BossHappy');
+        this.setTintFill(0xffffff);
+        this.trackTimer(this.scene.time.delayedCall(250, () => this.clearTint()));
 
+        this.body.setCollideWorldBounds(true).setBounce(1);
+        
+        this.shootEvent.paused = false;
+        this.shootEvent.callback = this.shootFan;
+        this.shootEvent.delay = 300;
+        
+        const flurrySpeed = 400;
+        const flurryError = 10;
+        this.flurryEvent = this.trackTimer(this.scene.time.addEvent({
+            delay: 75,
+            loop: true,
+            callback: () => this.shootFlurryBullet(flurrySpeed, flurryError),
+            callbackScope: this
+        }));
+    }
+    
+    // New FINAL phase exit callback
+    exitFinal() {
+        if (this.flurryEvent) {
+            this.flurryEvent.remove(false);
+            this.flurryEvent = null;
+        }
+        this.spinSpeed = 90;
+        this.shootEvent.delay = 1800;
+        this.shootEvent.callback = this.shootFan;
+    }
 
-    // -------------------------
-    // Phaser update loop
-    // -------------------------
     update(time, delta) {
-        // always rotate for some visual flair
         this.angle += this.spinSpeed * (delta / 1000);
 
-        if (this.stateName === 'PHASE9') {
-            // if the player moves, keep updating velocity toward them
-            this.scene.physics.moveTo(
-                this,
-                this.scene.player.x,
-                this.scene.player.y,
-                this.speed
-            );
+        if (this.stateName === 'PHASE9' && this.player && this.player.active) {
+            this.scene.physics.moveToObject(this, this.player, this.speed);
         }
     }
 }
