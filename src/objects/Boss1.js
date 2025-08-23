@@ -49,7 +49,7 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
             { key: 'PHASE7', duration: 6100, enter: this.enterPhase7, exit: this.exitPhase7 },
             { key: 'PHASE8', duration: 20000, enter: this.enterPhase8, exit: this.exitPhase8 },
             { key: 'PHASE9', duration: 20000, enter: this.enterPhase9, exit: this.exitPhase9 },
-            { key: 'FINAL', duration: 60000, enter: this.enterFinal, exit: this.exitFinal },
+            { key: 'FINAL', duration: 999999, enter: this.enterFinal, exit: this.exitFinal },
         ];
 
         // The core fan shot timer, initially paused
@@ -80,59 +80,69 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
         return evt;
     }
 
-    scheduleState(i) {
-        const currentStateDef = this.states[this.currentState];
-        if (currentStateDef && typeof currentStateDef.exit === 'function') {
-            currentStateDef.exit.call(this);
-        }
-
-        if (!Number.isInteger(i) || !this.states[i]) {
-            console.warn(`Invalid state index ${i}. Falling back to state 0.`);
-            i = 0;
-        }
-
-        if (this.stateTimer) {
-            this.stateTimer.remove(false);
-            this.stateTimer = null;
-        }
-
-        const {
-            key,
-            duration,
-            enter
-        } = this.states[i];
-        this.currentState = i;
-        this.stateName = key;
-
-        if (typeof enter === 'function') enter.call(this, key);
-
-        this.nextStateIndex = (i + 1) % this.states.length;
-        if (key === 'PHASE9') {
-            this.nextStateIndex = 4;
-        }
-        
-        if (key === 'PHASE8') {
-            this.phase8Passes++;
-            if (this.phase8Passes >= 2) {
-                this.nextStateIndex = this.states.findIndex(state => state.key === 'FINAL');
-            } else {
-                this.nextStateIndex = 9;
-            }
-        }
-
-        const now = (this.scene && this.scene.time) ? this.scene.time.now : 0;
-        this.stateStartTime = now;
-        this.stateDuration = duration;
-        this.remainingStateTime = duration;
-
-        if (this.scene && this.scene.time) {
-            this.stateTimer = this.scene.time.addEvent({
-                delay: duration,
-                callback: () => this.scheduleState(this.nextStateIndex)
-            });
-            this.trackTimer(this.stateTimer);
-        }
+scheduleState(i) {
+    const currentStateDef = this.states[this.currentState];
+    if (currentStateDef && typeof currentStateDef.exit === 'function') {
+      currentStateDef.exit.call(this);
     }
+
+    if (!Number.isInteger(i) || !this.states[i]) {
+      console.warn(`Invalid state index ${i}. Falling back to state 0.`);
+      i = 0;
+    }
+
+    if (this.stateTimer) {
+      this.stateTimer.remove(false);
+      this.stateTimer = null;
+    }
+
+    const {
+      key,
+      duration,
+      enter
+    } = this.states[i];
+    this.currentState = i;
+    this.stateName = key;
+
+    if (typeof enter === 'function') enter.call(this, key);
+
+    // If the previous state was Phase 9, change the global shootEvent callback
+    if (currentStateDef && currentStateDef.key === 'PHASE9') {
+      this.shootEvent.callback = this.shootFanTwice;
+    }
+
+    this.nextStateIndex = (i + 1) % this.states.length;
+    if (key === 'PHASE9') {
+      this.nextStateIndex = 4;
+    }
+
+    if (key === 'PHASE8') {
+      this.phase8Passes++;
+      if (this.phase8Passes >= 2) {
+        this.nextStateIndex = this.states.findIndex(state => state.key === 'FINAL');
+      } else {
+        this.nextStateIndex = 9;
+      }
+    }
+    
+    // Check if the current state is FINAL. If so, do not set a new state timer.
+    if (key === 'FINAL') {
+      return;
+    }
+
+    const now = (this.scene && this.scene.time) ? this.scene.time.now : 0;
+    this.stateStartTime = now;
+    this.stateDuration = duration;
+    this.remainingStateTime = duration;
+
+    if (this.scene && this.scene.time) {
+      this.stateTimer = this.scene.time.addEvent({
+        delay: duration,
+        callback: () => this.scheduleState(this.nextStateIndex)
+      });
+      this.trackTimer(this.stateTimer);
+    }
+  }
 
     pauseBossFight() {
         if (this.isPaused) return;
@@ -619,27 +629,28 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
 
     exitPhase7() {}
 
-    enterPhase8() {
-        this.stateName = 'PHASE8';
-        this.player = this.scene.player;
-        this.shootEvent.paused = false;
-        this.shootEvent.callback = this.shootFan;
-        this.shootEvent.delay = 1800;
-        this.spinSpeed = 180;
-        
-        // Always set bounce in this phase
-        this.body.setCollideWorldBounds(true).setBounce(1);
-        
-        // Start moving randomly at the beginning of the phase
-        this.body.setVelocity(Phaser.Math.Between(-150, 150), Phaser.Math.Between(-150, 150));
+ enterPhase8() {
+    this.stateName = 'PHASE8';
+    this.player = this.scene.player;
+    this.shootEvent.paused = false;
+    this.shootEvent.callback = this.shootFan;
+    this.shootEvent.delay = 1800;
+    this.spinSpeed = 180;
+    
+    // Always set bounce in this phase
+    this.body.setCollideWorldBounds(true).setBounce(1);
+    
+    // Start moving randomly at the beginning of the phase
+    // CHANGED: Increased the velocity for a faster bounce.
+    this.body.setVelocity(Phaser.Math.Between(-300, 300), Phaser.Math.Between(-300, 300));
 
-        this.phase8Timer = this.trackTimer(this.scene.time.addEvent({
-            delay: 120,
-            loop: true,
-            callback: () => this.shootPhase8Bullet(300, 20),
-            callbackScope: this
-        }));
-    }
+    this.phase8Timer = this.trackTimer(this.scene.time.addEvent({
+      delay: 120,
+      loop: true,
+      callback: () => this.shootPhase8Bullet(300, 20),
+      callbackScope: this
+    }));
+  }
 
     shootPhase8Bullet(speed, errorMargin) {
         if (this.stateName !== 'PHASE8') return;
@@ -704,47 +715,146 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
     }
     
     // New FINAL phase entry callback
-    enterFinal() {
-        this.stateName = 'FINAL';
-        this.player = this.scene.player;
-        this.spinSpeed = 360;
-        
-        this.setTexture('BossHappy');
-        this.setTintFill(0xffffff);
-        this.trackTimer(this.scene.time.delayedCall(250, () => this.clearTint()));
+enterFinal() {
+    this.stateName = 'FINAL';
+    this.player = this.scene.player;
 
-        this.body.setCollideWorldBounds(true).setBounce(1);
-        
-        this.shootEvent.paused = false;
-        this.shootEvent.callback = this.shootFan;
-        this.shootEvent.delay = 300;
-        
-        const flurrySpeed = 400;
-        const flurryError = 10;
-        this.flurryEvent = this.trackTimer(this.scene.time.addEvent({
-            delay: 75,
-            loop: true,
-            callback: () => this.shootFlurryBullet(flurrySpeed, flurryError),
-            callbackScope: this
+    // Stops all bullet attacks before cleanup
+    this.shootEvent.paused = true;
+    if (this.flurryEvent) {
+        this.flurryEvent.remove(false);
+        this.flurryEvent = null;
+    }
+
+    // Now, perform a targeted cleanup to remove other extraneous timers.
+    // The main shootEvent is now handled and should not be removed.
+    for (const t of this.trackedTimers) {
+        // Exclude the main shootEvent from being removed
+        if (t !== this.shootEvent) {
+            if (t) t.remove(false);
+        }
+    }
+    this.trackedTimers.clear();
+    // Re-add the shootEvent to the tracked timers if it wasn't removed.
+    this.trackedTimers.add(this.shootEvent);
+    
+    // Sets the boss to spin slower and counter-clockwise
+    this.spinSpeed = -180;
+    
+    // Removes the angry texture and tint
+    this.setTexture('BossHappy');
+    this.setTintFill(0xffffff);
+    this.trackTimer(this.scene.time.delayedCall(250, () => this.clearTint()));
+
+    // Sets the boss to move to the top middle of the screen
+    this.body.setCollideWorldBounds(false).setBounce(0);
+    const { width } = this.scene.scale;
+    const targetX = width / 2;
+    const targetY = 100;
+    this.scene.physics.moveTo(this, targetX, targetY, this.speed);
+    
+    // Remove wall bullets one by one
+    const bullets = this.wallBullets.getChildren();
+    bullets.forEach((bullet, index) => {
+        this.trackTimer(this.scene.time.delayedCall(index * 50, () => {
+            if (bullet && bullet.active) {
+                bullet.destroy();
+            }
         }));
+    });
+
+    // Schedule the boss's exit and victory screen after 10 seconds
+    this.trackTimer(this.scene.time.delayedCall(10000, () => {
+        // Stop the boss's spinning
+        this.spinSpeed = 0;
+        this.setAngularVelocity(0);
+
+        // Make the boss fly upwards
+        this.body.setVelocityY(-this.speed * 2);
+
+        // Call a method to display the victory screen
+        this.trackTimer(this.scene.time.delayedCall(1500, () => {
+            this.displayVictoryScreen();
+        }));
+    }));
+    
+    // Fade out the music over 10 seconds
+    if (this.scene.bgm && this.scene.bgm.isPlaying) {
+        this.scene.tweens.add({
+            targets: this.scene.bgm,
+            volume: 0,
+            duration: 10000, // 10 seconds
+            onComplete: () => {
+                this.scene.bgm.stop();
+            }
+        });
+    }
+}
+
+  // NEW: Add a method to display the victory screen
+displayVictoryScreen() {
+        const { width, height } = this.scene.scale;
+
+        // Clear all tracked timers before destroying the boss
+        for (const t of this.trackedTimers) {
+            if (t) t.remove(false);
+        }
+        this.trackedTimers.clear();
+
+        // Display the victory text
+        this.scene.add.text(width / 2, height / 2, 'VICTORY!', {
+            fontSize: '64px',
+            fill: '#00ff00',
+            align: 'center'
+        }).setOrigin(0.5);
+
+        // Destroy the boss object after cleanup
+        this.destroy();
     }
     
-    // New FINAL phase exit callback
-    exitFinal() {
-        if (this.flurryEvent) {
-            this.flurryEvent.remove(false);
-            this.flurryEvent = null;
-        }
-        this.spinSpeed = 90;
-        this.shootEvent.delay = 1800;
-        this.shootEvent.callback = this.shootFan;
+// New FINAL phase exit callback
+  exitFinal() {
+    if (this.flurryEvent) {
+      this.flurryEvent.remove(false);
+      this.flurryEvent = null;
+    }
+    this.spinSpeed = 90;
+    this.shootEvent.delay = 1800;
+    this.shootEvent.callback = this.shootFan;
+  }
+
+preUpdate(time, delta) {
+    // NEW: Check if the boss object is active before running any code.
+    if (!this.active) {
+        return;
+    }
+    
+    super.preUpdate(time, delta);
+    if (this.isPaused || !this.body) return;
+
+    // This logic should be moved to the update() loop for the FINAL phase
+    if (this.stateName === 'FINAL' && this.player && this.player.active) {
+        // This line is likely causing the error and should be removed from preUpdate.
+        // It's also inconsistent with your new FINAL phase behavior.
+        // this.scene.physics.moveToObject(this, this.player, this.speed * 1.5);
+    }
+}
+
+update(time, delta) {
+    this.angle += this.spinSpeed * (delta / 1000);
+
+    if (this.stateName === 'PHASE9' && this.player && this.player.active) {
+      this.scene.physics.moveToObject(this, this.player, this.speed * 2);
     }
 
-    update(time, delta) {
-        this.angle += this.spinSpeed * (delta / 1000);
-
-        if (this.stateName === 'PHASE9' && this.player && this.player.active) {
-            this.scene.physics.moveToObject(this, this.player, this.speed);
-        }
+    // Stops the boss's movement when it reaches its target in FINAL phase
+    if (this.stateName === 'FINAL' && this.body && this.body.velocity.x !== 0 && this.body.velocity.y !== 0) {
+      const targetX = this.scene.scale.width / 2;
+      const targetY = 100;
+      if (Phaser.Math.Distance.Between(this.x, this.y, targetX, targetY) < 5) {
+        this.body.setVelocity(0, 0);
+        this.setPosition(targetX, targetY);
+      }
     }
+  }
 }
