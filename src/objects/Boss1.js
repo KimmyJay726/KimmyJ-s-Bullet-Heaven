@@ -6,6 +6,7 @@ export default class Boss1 extends Phaser.Physics.Arcade.Sprite {
         scene.physics.add.existing(this);
 
         this.isPaused = false;
+        this.isDestroyed = false; // Flag to safely stop updates after victory
         this.trackedTimers = new Set();
         this.stateTimer = null;
         this.stateStartTime = 0;
@@ -206,11 +207,19 @@ scheduleState(i) {
     }
 
     preUpdate(time, delta) {
+        // NEW: Check if the boss is marked for destruction
+        if (this.isDestroyed) {
+            return;
+        }
+        
         super.preUpdate(time, delta);
         if (this.isPaused || !this.body) return;
 
+        // This logic should be moved to the update() loop for the FINAL phase
         if (this.stateName === 'FINAL' && this.player && this.player.active) {
-            this.scene.physics.moveToObject(this, this.player, this.speed * 1.5);
+            // This line is likely causing the error and should be removed from preUpdate.
+            // It's also inconsistent with your new FINAL phase behavior.
+            // this.scene.physics.moveToObject(this, this.player, this.speed * 1.5);
         }
     }
 
@@ -629,28 +638,28 @@ scheduleState(i) {
 
     exitPhase7() {}
 
- enterPhase8() {
-    this.stateName = 'PHASE8';
-    this.player = this.scene.player;
-    this.shootEvent.paused = false;
-    this.shootEvent.callback = this.shootFan;
-    this.shootEvent.delay = 1800;
-    this.spinSpeed = 180;
-    
-    // Always set bounce in this phase
-    this.body.setCollideWorldBounds(true).setBounce(1);
-    
-    // Start moving randomly at the beginning of the phase
-    // CHANGED: Increased the velocity for a faster bounce.
-    this.body.setVelocity(Phaser.Math.Between(-300, 300), Phaser.Math.Between(-300, 300));
+    enterPhase8() {
+        this.stateName = 'PHASE8';
+        this.player = this.scene.player;
+        this.shootEvent.paused = false;
+        this.shootEvent.callback = this.shootFan;
+        this.shootEvent.delay = 1800;
+        this.spinSpeed = 180;
+        
+        // Always set bounce in this phase
+        this.body.setCollideWorldBounds(true).setBounce(1);
+        
+        // Start moving randomly at the beginning of the phase
+        // CHANGED: Increased the velocity for a faster bounce.
+        this.body.setVelocity(Phaser.Math.Between(-300, 300), Phaser.Math.Between(-300, 300));
 
-    this.phase8Timer = this.trackTimer(this.scene.time.addEvent({
-      delay: 120,
-      loop: true,
-      callback: () => this.shootPhase8Bullet(300, 20),
-      callbackScope: this
-    }));
-  }
+        this.phase8Timer = this.trackTimer(this.scene.time.addEvent({
+            delay: 120,
+            loop: true,
+            callback: () => this.shootPhase8Bullet(300, 20),
+            callbackScope: this
+        }));
+    }
 
     shootPhase8Bullet(speed, errorMargin) {
         if (this.stateName !== 'PHASE8') return;
@@ -778,87 +787,100 @@ enterFinal() {
         }));
     }));
     
-    // Fade out the music over 10 seconds
+    // NEW: Manual BGM fade out
     if (this.scene.bgm && this.scene.bgm.isPlaying) {
-        this.scene.tweens.add({
-            targets: this.scene.bgm,
-            volume: 0,
-            duration: 10000, // 10 seconds
-            onComplete: () => {
-                this.scene.bgm.stop();
-            }
+      this.trackTimer(this.scene.time.addEvent({
+        delay: 50, // Update volume every 50ms
+        repeat: 200, // 200 * 50ms = 10 seconds total duration
+        callback: () => {
+          this.scene.bgm.volume = Math.max(0, this.scene.bgm.volume - 0.005); // Decrease volume by a small amount
+          if (this.scene.bgm.volume === 0) {
+            this.scene.bgm.stop();
+          }
+        },
+        callbackScope: this
+      }));
+    }
+}
+
+// New FINAL phase exit callback
+    exitFinal() {
+        if (this.flurryEvent) {
+            this.flurryEvent.remove(false);
+            this.flurryEvent = null;
+        }
+        this.spinSpeed = 90;
+        this.shootEvent.delay = 1800;
+        this.shootEvent.callback = this.shootFan;
+    }
+
+    preUpdate(time, delta) {
+        // NEW: Check if the boss is marked for destruction
+        if (this.isDestroyed) {
+            return;
+        }
+        
+        super.preUpdate(time, delta);
+        if (this.isPaused || !this.body) return;
+
+        // This logic should be moved to the update() loop for the FINAL phase
+        if (this.stateName === 'FINAL' && this.player && this.player.active) {
+            // This line is likely causing the error and should be removed from preUpdate.
+            // It's also inconsistent with your new FINAL phase behavior.
+            // this.scene.physics.moveToObject(this, this.player, this.speed * 1.5);
+        }
+    }
+
+    update(time, delta) {
+        // NEW: Check if the boss is marked for destruction
+        if (this.isDestroyed) {
+            return;
+        }
+
+        this.angle += this.spinSpeed * (delta / 1000);
+
+        if (this.stateName === 'PHASE9' && this.player && this.player.active) {
+          this.scene.physics.moveToObject(this, this.player, this.speed * 2);
+        }
+
+        // Stops the boss's movement when it reaches its target in FINAL phase
+        if (this.stateName === 'FINAL' && this.body && this.body.velocity.x !== 0 && this.body.velocity.y !== 0) {
+          const targetX = this.scene.scale.width / 2;
+          const targetY = 100;
+          if (Phaser.Math.Distance.Between(this.x, this.y, targetX, targetY) < 5) {
+            this.body.setVelocity(0, 0);
+            this.setPosition(targetX, targetY);
+          }
+        }
+      }
+
+    // NEW: Add a method to display the victory screen
+    displayVictoryScreen() {
+        const { width, height } = this.scene.scale;
+
+        // Clear all tracked timers before destroying the boss
+        for (const t of this.trackedTimers) {
+            if (t) t.remove(false);
+        }
+        this.trackedTimers.clear();
+
+        // Display the victory text
+        this.scene.add.text(width / 2, height / 2, 'VICTORY!', {
+            fontSize: '64px',
+            fill: '#00ff00',
+            align: 'center'
+        }).setOrigin(0.5);
+
+        // NEW: Mark the boss for destruction and disable its physics body
+        this.isDestroyed = true;
+        if (this.body) {
+            this.body.enable = false;
+        }
+
+        // Postpone the destruction to the next game frame
+        // to prevent the race condition.
+        this.scene.time.delayedCall(1, () => {
+            this.destroy();
         });
     }
-}
-    
-// New FINAL phase exit callback
-  exitFinal() {
-    if (this.flurryEvent) {
-      this.flurryEvent.remove(false);
-      this.flurryEvent = null;
-    }
-    this.spinSpeed = 90;
-    this.shootEvent.delay = 1800;
-    this.shootEvent.callback = this.shootFan;
-  }
-
-preUpdate(time, delta) {
-    // NEW: Robust check for both active state and body existence.
-    if (!this.active || !this.body) {
-        return;
-    }
-    
-    super.preUpdate(time, delta);
-    if (this.isPaused) return;
-
-    // This logic should be moved to the update() loop for the FINAL phase
-    if (this.stateName === 'FINAL' && this.player && this.player.active) {
-        // This line is likely causing the error and should be removed from preUpdate.
-        // It's also inconsistent with your new FINAL phase behavior.
-        // this.scene.physics.moveToObject(this, this.player, this.speed * 1.5);
-    }
-}
-
-update(time, delta) {
-    this.angle += this.spinSpeed * (delta / 1000);
-
-    if (this.stateName === 'PHASE9' && this.player && this.player.active) {
-      this.scene.physics.moveToObject(this, this.player, this.speed * 2);
-    }
-
-    // Stops the boss's movement when it reaches its target in FINAL phase
-    if (this.stateName === 'FINAL' && this.body && this.body.velocity.x !== 0 && this.body.velocity.y !== 0) {
-      const targetX = this.scene.scale.width / 2;
-      const targetY = 100;
-      if (Phaser.Math.Distance.Between(this.x, this.y, targetX, targetY) < 5) {
-        this.body.setVelocity(0, 0);
-        this.setPosition(targetX, targetY);
-      }
-    }
-  }
-
-// NEW: Add a method to display the victory screen
-displayVictoryScreen() {
-    const { width, height } = this.scene.scale;
-
-    // Clear all tracked timers before destroying the boss
-    for (const t of this.trackedTimers) {
-        if (t) t.remove(false);
-    }
-    this.trackedTimers.clear();
-
-    // Display the victory text
-    this.scene.add.text(width / 2, height / 2, 'VICTORY!', {
-        fontSize: '64px',
-        fill: '#00ff00',
-        align: 'center'
-    }).setOrigin(0.5);
-
-    // Postpone the destruction to the next game frame
-    // to prevent the race condition.
-    this.scene.time.delayedCall(1, () => {
-        this.destroy();
-    });
-}
-
 }

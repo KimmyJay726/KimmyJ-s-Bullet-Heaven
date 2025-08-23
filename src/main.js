@@ -3,6 +3,7 @@ import BossSelectScene from './scenes/BossSelectScene.js';
 import LoadingScene from './scenes/LoadingScene.js';
 import Level    from "./scenes/Level.js";
 import PauseOverlay from './scenes/PauseOverlay.js';
+import SettingsOverlay from './scenes/SettingsOverlay.js';
 import Preload  from "./scenes/Preload.js";
 
 
@@ -33,6 +34,7 @@ window.addEventListener('load', function () {
   game.scene.add("LoadingScene", LoadingScene);
   game.scene.add("Level",    Level);
   game.scene.add("PauseOverlay", PauseOverlay);
+  game.scene.add("SettingsOverlay", SettingsOverlay);
   game.scene.add("Boot",     Boot, true);
 });
 

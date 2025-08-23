@@ -1,9 +1,11 @@
+import SettingsOverlay from './SettingsOverlay.js';
+
 export default class PauseOverlay extends Phaser.Scene {
   constructor() {
     super({ key: 'PauseOverlay' });
   }
 
-  create(data) {
+create(data) {
     const { returnTo, boss } = data;
     const { width, height } = this.scale;
 
@@ -16,7 +18,7 @@ export default class PauseOverlay extends Phaser.Scene {
 
     // Title
     this.add
-      .text(width / 2, height / 2 - 70, 'Paused', {
+      .text(width / 2, height / 2 - 100, 'Paused', {
         fontFamily: 'Arial',
         fontSize: '48px',
         color: '#fff',
@@ -27,7 +29,7 @@ export default class PauseOverlay extends Phaser.Scene {
 
     // Hint
     this.add
-      .text(width / 2, height / 2 - 20, 'Press ESC to resume', {
+      .text(width / 2, height / 2 - 50, 'Press ESC to resume', {
         fontFamily: 'Arial',
         fontSize: '20px',
         color: '#fff'
@@ -55,8 +57,10 @@ export default class PauseOverlay extends Phaser.Scene {
       return btn;
     };
 
-    makeButton(height / 2 + 25, 'Restart', '#1e88e5', '#1565c0', () => this.restart(returnTo));
-    makeButton(height / 2 + 70, 'Main Menu', '#43a047', '#2e7d32', () => this.goToMainMenu(returnTo));
+    // Adjusted button positions
+    makeButton(height / 2, 'Settings', '#ff9800', '#f57c00', () => this.goToSettings(returnTo));
+    makeButton(height / 2 + 50, 'Restart', '#1e88e5', '#1565c0', () => this.restart(returnTo));
+    makeButton(height / 2 + 100, 'Main Menu', '#43a047', '#2e7d32', () => this.goToMainMenu(returnTo));
 
     // Pause audio and boss
     this.sound.pauseAll();
@@ -72,11 +76,9 @@ export default class PauseOverlay extends Phaser.Scene {
     this.menuKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.M);
     this.menuKey.once('down', () => this.goToMainMenu(returnTo));
 
-    // Replace global pointer resume with dim-only resume to avoid conflicts with buttons
-
     // Auto-pause on tab blur
     this._onVisibilityChange = () => {
-      if (document.hidden && !this.scene.isPaused(returnTo)) {
+      if (document.hidden && !this.scene.isActive('PauseOverlay')) {
         this.scene.pause(returnTo);
         this.scene.launch('PauseOverlay', { returnTo, boss });
       }
@@ -109,6 +111,10 @@ export default class PauseOverlay extends Phaser.Scene {
     }
     this.scene.stop(); // stop overlay
     this.scene.start('MainMenu');
+  }
+
+  goToSettings(targetKey) {
+    this.scene.launch('SettingsOverlay', { returnTo: 'PauseOverlay' });
   }
 
   shutdown() {
