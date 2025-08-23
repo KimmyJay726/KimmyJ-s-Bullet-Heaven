@@ -790,27 +790,6 @@ enterFinal() {
         });
     }
 }
-
-  // NEW: Add a method to display the victory screen
-displayVictoryScreen() {
-        const { width, height } = this.scene.scale;
-
-        // Clear all tracked timers before destroying the boss
-        for (const t of this.trackedTimers) {
-            if (t) t.remove(false);
-        }
-        this.trackedTimers.clear();
-
-        // Display the victory text
-        this.scene.add.text(width / 2, height / 2, 'VICTORY!', {
-            fontSize: '64px',
-            fill: '#00ff00',
-            align: 'center'
-        }).setOrigin(0.5);
-
-        // Destroy the boss object after cleanup
-        this.destroy();
-    }
     
 // New FINAL phase exit callback
   exitFinal() {
@@ -824,13 +803,13 @@ displayVictoryScreen() {
   }
 
 preUpdate(time, delta) {
-    // NEW: Check if the boss object is active before running any code.
-    if (!this.active) {
+    // NEW: Robust check for both active state and body existence.
+    if (!this.active || !this.body) {
         return;
     }
     
     super.preUpdate(time, delta);
-    if (this.isPaused || !this.body) return;
+    if (this.isPaused) return;
 
     // This logic should be moved to the update() loop for the FINAL phase
     if (this.stateName === 'FINAL' && this.player && this.player.active) {
@@ -857,4 +836,29 @@ update(time, delta) {
       }
     }
   }
+
+// NEW: Add a method to display the victory screen
+displayVictoryScreen() {
+    const { width, height } = this.scene.scale;
+
+    // Clear all tracked timers before destroying the boss
+    for (const t of this.trackedTimers) {
+        if (t) t.remove(false);
+    }
+    this.trackedTimers.clear();
+
+    // Display the victory text
+    this.scene.add.text(width / 2, height / 2, 'VICTORY!', {
+        fontSize: '64px',
+        fill: '#00ff00',
+        align: 'center'
+    }).setOrigin(0.5);
+
+    // Postpone the destruction to the next game frame
+    // to prevent the race condition.
+    this.scene.time.delayedCall(1, () => {
+        this.destroy();
+    });
+}
+
 }

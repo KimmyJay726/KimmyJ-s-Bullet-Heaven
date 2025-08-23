@@ -27,19 +27,18 @@ export default class MainMenu extends Phaser.Scene {
   create() {
     const { width, height } = this.cameras.main;
 
-    
-
     if (this.textures.exists('menuBg')) {
       this.add.image(width / 2, height / 2, 'menuBg').setOrigin(0.5);
     }
 
-    let menuBGM = this.sound.get('menuBGM');
+    // Correctly get or create the BGM and assign it to the class property
+    this.bgm = this.sound.get('menuBGM');
 
-    if (!menuBGM) {
-      menuBGM = this.sound.add('menuBGM', { loop: true, volume: 0.5 });
-      menuBGM.play();
-    } else if (!menuBGM.isPlaying) {
-      menuBGM.play();
+    if (!this.bgm) {
+      this.bgm = this.sound.add('menuBGM', { loop: true, volume: 0.5 });
+      this.bgm.play();
+    } else if (!this.bgm.isPlaying) {
+      this.bgm.play();
     }
 
     this.add
@@ -57,6 +56,8 @@ export default class MainMenu extends Phaser.Scene {
       () => {
         const bossType =
           Phaser.Utils.Array.GetRandom(this.availableBosses)?.key || 'Boss1';
+        
+        // This line now works because this.bgm has been assigned the sound object
         this.bgm.stop();
         this.scene.start('LoadingScene', { bossType });
       }
